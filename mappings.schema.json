@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://anibridge.eliasbenb.dev/assets/snippets/mappings.schema.json",
+  "title": "AniBridge Mappings",
+  "type": "object",
+  "description": "AniBridge mappings schema for defining cross-provider episode mappings.",
+  "properties": {
+    "$meta": {
+      "type": "object",
+      "properties": {
+        "schema_version": { "type": "string" },
+        "generated_on": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": true
+    },
+    "$includes": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "$schema": { "type": "string" }
+  },
+  "patternProperties": {
+    "^\\w+:\\w+(?::\\w+)?$": {
+      "type": "object",
+      "description": "Source descriptor: 'provider:id[:scope]'.",
+      "patternProperties": {
+        "^\\w+:\\w+(?::\\w+)?$": {
+          "type": "object",
+          "description": "Target descriptor: 'provider:id[:scope]'.",
+          "patternProperties": {
+            "^[0-9]+(?:-[0-9]+)?$": {
+              "description": "Source episode range (e.g. '1' or '1-5').",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "Target range (e.g. '1', '1-6', '1-6|2').",
+                  "pattern": "^(?:[0-9]+(?:-(?:[0-9]+)?)?|[0-9]+-[0-9]+\\|[0-9]+)$"
+                },
+                {
+                  "type": "null",
+                  "description": "Explicitly unmap this range."
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
