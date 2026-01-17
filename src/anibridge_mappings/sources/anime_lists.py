@@ -136,16 +136,16 @@ class AnimeListsSource(IdMappingSource, EpisodeMappingSource):
                     if not target_specs:
                         continue
 
-                    for target_episode, source_episodes in pairs:
-                        target_key = self._episode_key(target_episode)
-                        if target_key is None:
+                    for source_episode, target_episodes in pairs:
+                        source_key = self._episode_key(source_episode)
+                        if source_key is None:
                             continue
 
                         # Keep track of whether this mapping explicitly includes "0"
-                        had_zero = any(ep.strip() == "0" for ep in source_episodes)
+                        had_zero = any(ep.strip() == "0" for ep in target_episodes)
 
-                        filtered_sources: list[str] = []
-                        for ep in source_episodes:
+                        filtered_targets: list[str] = []
+                        for ep in target_episodes:
                             trimmed = ep.strip()
                             if not trimmed:
                                 continue
@@ -155,34 +155,34 @@ class AnimeListsSource(IdMappingSource, EpisodeMappingSource):
                                 continue
                             key = self._episode_key(trimmed)
                             if key is not None:
-                                filtered_sources.append(key)
+                                filtered_targets.append(key)
 
                         # Even if all targets are 0/blank, we should still record
                         # coverage so that default fallbacks don't override.
-                        if had_zero and not filtered_sources:
+                        if had_zero and not filtered_targets:
                             for provider, entry_id, target_scope, _ in target_specs:
                                 if entry_id:
                                     coverage.add((source_scope, provider, target_scope))
                             continue
 
-                        if not filtered_sources:
+                        if not filtered_targets:
                             continue
 
                         for provider, entry_id, target_scope, _unused in target_specs:
                             if not entry_id:
                                 continue
-                            target_node = (
-                                provider,
-                                entry_id,
-                                target_scope,
-                                target_key,
+                            source_node = (
+                                "anidb",
+                                anidb_id,
+                                source_scope,
+                                source_key,
                             )
-                            for source_key in filtered_sources:
-                                source_node = (
-                                    "anidb",
-                                    anidb_id,
-                                    source_scope,
-                                    source_key,
+                            for target_key in filtered_targets:
+                                target_node = (
+                                    provider,
+                                    entry_id,
+                                    target_scope,
+                                    target_key,
                                 )
                                 graph.add_edge(source_node, target_node)
                             coverage.add((source_scope, provider, target_scope))
