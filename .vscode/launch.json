@@ -1,0 +1,10 @@
+{
+  "configurations": [
+    {
+      "type": "debugpy",
+      "request": "launch",
+      "name": "Run AniBridge Mappings",
+      "program": "${workspaceFolder}/update_mappings.py"
+    }
+  ]
+}

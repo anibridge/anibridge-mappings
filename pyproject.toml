@@ -1,0 +1,63 @@
+[project]
+name = "anibridge-mappings"
+version = "3.0.0"
+description = "Anime mappings for the AniBridge project."
+readme = "README.md"
+requires-python = ">=3.13"
+license = { text = "MIT" }
+
+authors = [
+    { name = "Elias Benbourenane", email = "eliasbenbourenane@gmail.com" }
+]
+maintainers = [
+    { name = "Elias Benbourenane", email = "eliasbenbourenane@gmail.com" },
+    { name = "LuceoEtzio" }
+]
+
+dependencies = [
+    "aiohttp>=3.13.2",
+    "lxml>=6.0.2",
+    "pydantic>=2.12.5",
+    "ruamel-yaml>=0.19.1",
+    "zstandard>=0.25.0",
+]
+
+[project.urls]
+Homepage = "https://anibridge.eliasbenb.dev"
+Documentation = "https://anibridge.eliasbenb.dev"
+Source = "https://github.com/anibridge/anibridge-mappings"
+Issues = "https://github.com/anibridge/anibridge-mappings/issues"
+
+[tool.hatch.build]
+packages = ["src/anibridge_mappings"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.ruff]
+indent-width = 4
+line-length = 88
+
+[tool.ruff.format]
+docstring-code-format = true
+indent-style = "space"
+quote-style = "double"
+
+[tool.ruff.lint]
+select = ["B", "D", "DOC", "E", "F", "I", "RUF", "SIM", "UP", "W"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "hatchling>=1.28.0",
+    "pytest>=9.0.1",
+    "ruff>=0.14.8",
+    "ty>=0.0.12",
+    "types-lxml>=2025.11.25",
+]
