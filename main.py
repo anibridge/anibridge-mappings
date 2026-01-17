@@ -82,17 +82,19 @@ def configure_logging(level: str) -> None:
 
 async def build_artifacts(
     schema_version: str,
+    edits_file: str,
 ) -> tuple[AggregationArtifacts, dict[str, Any]]:
     """Run the aggregation pipeline and return artifacts plus serialized payload.
 
     Args:
         schema_version (str): Version string for the schema metadata.
+        edits_file (str): Path to the edits YAML file.
 
     Returns:
         tuple[AggregationArtifacts, dict[str, Any]]: Aggregation results and payload.
     """
     aggregator = default_aggregator()
-    artifacts = await aggregator.run()
+    artifacts = await aggregator.run(edits_file=edits_file)
     payload = build_schema_payload(
         artifacts.episode_graph,
         schema_version=schema_version,
@@ -142,7 +144,9 @@ def main() -> None:
         sys.exit(2)
 
     try:
-        _artifacts, payload = asyncio.run(build_artifacts(args.schema_version))
+        _artifacts, payload = asyncio.run(
+            build_artifacts(args.schema_version, args.edits)
+        )
     except KeyboardInterrupt:
         log.warning("Mapping generation interrupted")
         sys.exit(130)

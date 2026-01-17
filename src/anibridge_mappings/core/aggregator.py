@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from logging import getLogger
 from typing import Any
 
+from anibridge_mappings.core.edits import apply_edits, load_edits
 from anibridge_mappings.core.graph import EpisodeMappingGraph, IdMappingGraph
 from anibridge_mappings.core.inference import infer_episode_mappings
 from anibridge_mappings.core.meta import MetaStore
@@ -82,8 +83,11 @@ class MappingAggregator:
         self._validators = tuple(validators or ())
         self._all_sources = self._dedupe_sources()
 
-    async def run(self) -> AggregationArtifacts:
+    async def run(self, *, edits_file: str | None = None) -> AggregationArtifacts:
         """Execute the full pipeline and return the collected artifacts.
+
+        Args:
+            edits_file (str | None): Optional path to edits file.
 
         Returns:
             AggregationArtifacts: The collected graphs and metadata.
@@ -109,6 +113,12 @@ class MappingAggregator:
                 "Episode graph contains %d nodes after inference",
                 len(episode_graph.nodes()),
             )
+
+        if edits_file:
+            edits = load_edits(edits_file)
+            if edits:
+                edited_scopes = apply_edits(episode_graph, edits)
+                log.info("Applied edits for %d source scopes", len(edited_scopes))
 
         validation_issues = await self._run_validators(
             episode_graph, meta_store, id_graph
