@@ -81,6 +81,14 @@ def _iter_target_ranges(
             yield source_range, target_range
 
 
+def _iter_target_segments(target_range: str) -> Iterable[str]:
+    """Yield individual target range segments (comma-separated)."""
+    for segment in target_range.split(","):
+        segment = segment.strip()
+        if segment:
+            yield segment
+
+
 class MappingOverlapValidator(MappingValidator):
     """Detect overlapping target ranges for a given target scope."""
 
@@ -110,36 +118,39 @@ class MappingOverlapValidator(MappingValidator):
             for (t_provider, t_id, t_scope), source_ranges in targets.items():
                 segments: list[tuple[int, int, str]] = []
                 for src_range, target_range in _iter_target_ranges(source_ranges):
-                    base = target_range.split("|", 1)[0]
-                    bounds = parse_range_bounds(base)
-                    if bounds is None or bounds[1] is None:
-                        continue
-                    start, end_opt = bounds
-                    end = cast(int, end_opt)
-                    for prev_start, prev_end, prev_src in segments:
-                        if not (end < prev_start or start > prev_end):
-                            issues.append(
-                                ValidationIssue(
-                                    validator=self.name,
-                                    message=(
-                                        "Overlapping target episode ranges for the "
-                                        "same target scope"
-                                    ),
-                                    source=_descriptor(src_provider, src_id, src_scope),
-                                    target=_descriptor(t_provider, t_id, t_scope),
-                                    source_range=src_range,
-                                    target_range=base,
-                                    details={
-                                        "source_range": src_range,
-                                        "target_range": base,
-                                        "overlaps_with_source_range": prev_src,
-                                        "overlaps_with_target_range": (
-                                            f"{prev_start}-{prev_end}"
+                    for segment in _iter_target_segments(target_range):
+                        base = segment.split("|", 1)[0]
+                        bounds = parse_range_bounds(base)
+                        if bounds is None or bounds[1] is None:
+                            continue
+                        start, end_opt = bounds
+                        end = cast(int, end_opt)
+                        for prev_start, prev_end, prev_src in segments:
+                            if not (end < prev_start or start > prev_end):
+                                issues.append(
+                                    ValidationIssue(
+                                        validator=self.name,
+                                        message=(
+                                            "Overlapping target episode ranges for the "
+                                            "same target scope"
                                         ),
-                                    },
+                                        source=_descriptor(
+                                            src_provider, src_id, src_scope
+                                        ),
+                                        target=_descriptor(t_provider, t_id, t_scope),
+                                        source_range=src_range,
+                                        target_range=base,
+                                        details={
+                                            "source_range": src_range,
+                                            "target_range": base,
+                                            "overlaps_with_source_range": prev_src,
+                                            "overlaps_with_target_range": (
+                                                f"{prev_start}-{prev_end}"
+                                            ),
+                                        },
+                                    )
                                 )
-                            )
-                    segments.append((start, end, src_range))
+                        segments.append((start, end, src_range))
 
         return issues
 
@@ -177,14 +188,38 @@ class MappingOverflowValidator(MappingValidator):
                     continue
 
                 for src_range, target_range in _iter_target_ranges(source_ranges):
-                    base = target_range.split("|", 1)[0]
-                    bounds = parse_range_bounds(base)
-                    if bounds is None:
-                        continue
-                    start, end_opt = bounds
-                    # Open upper bound: flag if the start already exceeds the limit.
-                    if end_opt is None:
-                        if start > limit:
+                    for segment in _iter_target_segments(target_range):
+                        base = segment.split("|", 1)[0]
+                        bounds = parse_range_bounds(base)
+                        if bounds is None:
+                            continue
+                        start, end_opt = bounds
+                        # Open upper bound: flag if the start already exceeds the limit.
+                        if end_opt is None:
+                            if start > limit:
+                                issues.append(
+                                    ValidationIssue(
+                                        validator=self.name,
+                                        message=(
+                                            "Target mapping exceeds available episodes"
+                                        ),
+                                        source=_descriptor(
+                                            _src_provider, _src_id, _src_scope
+                                        ),
+                                        target=_descriptor(t_provider, t_id, t_scope),
+                                        source_range=src_range,
+                                        target_range=base,
+                                        details={
+                                            "source_range": src_range,
+                                            "target_range": base,
+                                            "episode_limit": limit,
+                                        },
+                                    )
+                                )
+                            continue
+
+                        end = end_opt
+                        if end > limit:
                             issues.append(
                                 ValidationIssue(
                                     validator=self.name,
@@ -202,24 +237,5 @@ class MappingOverflowValidator(MappingValidator):
                                     },
                                 )
                             )
-                        continue
-
-                    end = end_opt
-                    if end > limit:
-                        issues.append(
-                            ValidationIssue(
-                                validator=self.name,
-                                message="Target mapping exceeds available episodes",
-                                source=_descriptor(_src_provider, _src_id, _src_scope),
-                                target=_descriptor(t_provider, t_id, t_scope),
-                                source_range=src_range,
-                                target_range=base,
-                                details={
-                                    "source_range": src_range,
-                                    "target_range": base,
-                                    "episode_limit": limit,
-                                },
-                            )
-                        )
 
         return issues

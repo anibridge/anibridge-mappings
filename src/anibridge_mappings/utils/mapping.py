@@ -28,9 +28,23 @@ def normalize_episode_key(value: str | None) -> str | None:
     trimmed = value.strip()
     if not trimmed:
         return None
-    if trimmed.lower() == "movie":
-        return "1"
     return trimmed or None
+
+
+def _split_ratio(range_key: str) -> tuple[str, int | None] | None:
+    """Split a range key into base range and optional ratio."""
+    if "|" not in range_key:
+        return range_key, None
+    base, ratio_raw = range_key.split("|", 1)
+    if ratio_raw == "":
+        return None
+    try:
+        ratio = int(ratio_raw)
+    except ValueError:
+        return None
+    if ratio == 0:
+        return None
+    return base, ratio
 
 
 def parse_range_bounds(range_key: str) -> tuple[int, int | None] | None:
@@ -44,9 +58,20 @@ def parse_range_bounds(range_key: str) -> tuple[int, int | None] | None:
     """
     if not range_key:
         return None
-    normalized = "1" if range_key == "movie" else range_key
-    if "-" in normalized:
-        left, right = normalized.split("-", 1)
+    normalized = range_key.strip()
+    if not normalized:
+        return None
+
+    if "," in normalized:
+        return None
+
+    split = _split_ratio(normalized)
+    if split is None:
+        return None
+    base, _ratio = split
+
+    if "-" in base:
+        left, right = base.split("-", 1)
         try:
             start = int(left)
         except ValueError:
@@ -63,7 +88,7 @@ def parse_range_bounds(range_key: str) -> tuple[int, int | None] | None:
             start, end = end, start
         return (start, end)
     try:
-        value = int(normalized)
+        value = int(base)
     except ValueError:
         return None
     return (value, value)
@@ -130,6 +155,9 @@ def collapse_source_mappings(source_map: Mapping[str, set[str]]) -> dict[str, st
     special_entries: dict[str, set[str]] = {}
 
     for source_range, target_ranges in source_map.items():
+        if "|" in source_range or "," in source_range:
+            special_entries[source_range] = target_ranges
+            continue
         bounds = parse_range_bounds(source_range)
         if bounds is not None:
             start, end = bounds
@@ -314,13 +342,11 @@ def _compute_ratio(source_len: int, target_len: int) -> int | None:
 
 def _format_special_targets(targets: set[str]) -> str:
     """Format target ranges for non-numeric source keys."""
-    normalized = {"1" if value == "movie" else value for value in targets}
-
-    numeric = sorted({int(value) for value in normalized if value.isdigit()})
+    numeric = sorted({int(value) for value in targets if value.isdigit()})
     if numeric:
         return ",".join(_compress_ranges(numeric))
 
-    return ",".join(sorted(normalized))
+    return ",".join(sorted(targets))
 
 
 def _compress_ranges(values: list[int]) -> list[str]:
@@ -375,6 +401,8 @@ def _expand_numeric_targets(values: set[str]) -> list[int]:
 
 def _parse_source_key(key: str) -> tuple[int, int] | None:
     """Return (start, end) for numeric source key or None for non-numeric."""
+    if "|" in key or "," in key:
+        return None
     bounds = parse_range_bounds(key)
     if bounds is None or bounds[1] is None:
         return None

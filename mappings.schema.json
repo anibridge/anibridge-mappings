@@ -3,7 +3,7 @@
   "$id": "https://anibridge.eliasbenb.dev/assets/snippets/mappings.schema.json",
   "title": "AniBridge Mappings",
   "type": "object",
-  "description": "AniBridge mappings schema for defining cross-provider episode mappings.",
+  "description": "AniBridge mappings schema for defining cross-provider range mappings.",
   "properties": {
     "$meta": {
       "type": "object",
@@ -13,10 +13,7 @@
       },
       "additionalProperties": true
     },
-    "$includes": {
-      "type": "array",
-      "items": { "type": "string" }
-    },
+    "$includes": { "type": "array", "items": { "type": "string" } },
     "$schema": { "type": "string" }
   },
   "patternProperties": {
@@ -28,13 +25,13 @@
           "type": "object",
           "description": "Target descriptor: 'provider:id[:scope]'.",
           "patternProperties": {
-            "^[0-9]+(?:-[0-9]+)?$": {
-              "description": "Source episode range (e.g. '1' or '1-5').",
+            "^\\d+(?:-\\d*)?(?:\\|-?\\d+)?$": {
+              "description": "Source range (e.g. '1', '1-5', '1-', '1-6|2').",
               "anyOf": [
                 {
                   "type": "string",
-                  "description": "Target range (e.g. '1', '1-6', '1-6|2').",
-                  "pattern": "^(?:[0-9]+(?:-(?:[0-9]+)?)?|[0-9]+-[0-9]+\\|[0-9]+)$"
+                  "description": "Target range (e.g. '1', '1-6', '1-', '1-6|2', '1-3,5-6').",
+                  "pattern": "^\\d+(?:-\\d*)?(?:\\|-?\\d+)?(?:,\\d+(?:-\\d*)?(?:\\|-?\\d+)?)*$"
                 },
                 {
                   "type": "null",
