@@ -253,7 +253,11 @@ class AnimeListsSource(IdMappingSource, EpisodeMappingSource):
             targets = [part.strip() for part in right.split("+") if part.strip()]
             if not targets:
                 continue
-            pairs.append((left, targets))
+            left_parts = [part.strip() for part in left.split(",") if part.strip()]
+            if not left_parts:
+                continue
+            for part in left_parts:
+                pairs.append((part, targets))
 
         return pairs
 
@@ -289,9 +293,10 @@ class AnimeListsSource(IdMappingSource, EpisodeMappingSource):
 
         pairs: list[tuple[str, list[str]]] = []
         for episode in range(start, end + 1):
-            # mapping-list offset range defines the FINAL target episode number
-            # (do not apply episodeoffset/tmdboffset on top of this).
-            pairs.append((str(episode), [str(episode + offset)]))
+            target_value = episode + offset
+            if target_value <= 0:
+                continue
+            pairs.append((str(episode), [str(target_value)]))
 
         return pairs
 

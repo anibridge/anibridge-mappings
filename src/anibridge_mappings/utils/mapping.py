@@ -155,30 +155,36 @@ def collapse_source_mappings(source_map: Mapping[str, set[str]]) -> dict[str, st
     special_entries: dict[str, set[str]] = {}
 
     for source_range, target_ranges in source_map.items():
-        if "|" in source_range or "," in source_range:
-            special_entries[source_range] = target_ranges
-            continue
-        bounds = parse_range_bounds(source_range)
-        if bounds is not None:
-            start, end = bounds
-            if end is not None:
-                target_bounds = [parse_range_bounds(value) for value in target_ranges]
-                all_numeric = all(
-                    bound is not None and bound[1] is not None
-                    for bound in target_bounds
-                )
-                source_len = end - start + 1
-                numeric_targets = _expand_numeric_targets(target_ranges)
-                if (
-                    all_numeric
-                    and numeric_targets
-                    and len(numeric_targets) == source_len
-                ):
-                    numeric_entries.append(((start, end), target_ranges))
-                else:
-                    special_entries[source_range] = target_ranges
+        source_parts = [
+            part.strip() for part in source_range.split(",") if part.strip()
+        ]
+        for part in source_parts:
+            if "|" in part:
+                special_entries[part] = target_ranges
                 continue
-        special_entries[source_range] = target_ranges
+            bounds = parse_range_bounds(part)
+            if bounds is not None:
+                start, end = bounds
+                if end is not None:
+                    target_bounds = [
+                        parse_range_bounds(value) for value in target_ranges
+                    ]
+                    all_numeric = all(
+                        bound is not None and bound[1] is not None
+                        for bound in target_bounds
+                    )
+                    source_len = end - start + 1
+                    numeric_targets = _expand_numeric_targets(target_ranges)
+                    if (
+                        all_numeric
+                        and numeric_targets
+                        and len(numeric_targets) == source_len
+                    ):
+                        numeric_entries.append(((start, end), target_ranges))
+                    else:
+                        special_entries[part] = target_ranges
+                    continue
+            special_entries[part] = target_ranges
 
     result: dict[str, str] = {}
     if numeric_entries:
