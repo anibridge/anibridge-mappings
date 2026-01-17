@@ -119,6 +119,10 @@ class MappingAggregator:
         else:
             log.info("Validation produced no issues")
 
+        transitive_edges = episode_graph.add_transitive_edges()
+        if transitive_edges:
+            log.info("Added %d transitive episode mapping edges", transitive_edges)
+
         return AggregationArtifacts(
             id_graph=id_graph,
             meta_store=meta_store,

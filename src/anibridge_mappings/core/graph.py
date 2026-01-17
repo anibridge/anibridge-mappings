@@ -189,6 +189,33 @@ class IdMappingGraph(_BaseGraph[IdNode]):
 class EpisodeMappingGraph(_BaseGraph[EpisodeNode]):
     """Graph of episode range mappings."""
 
+    def add_transitive_edges(self) -> int:
+        """Add edges between all nodes in each connected component.
+
+        Returns:
+            int: Number of new edges added.
+        """
+        visited: set[EpisodeNode] = set()
+        added = 0
+        for node in self.nodes():
+            if node in visited:
+                continue
+            component = self.get_component(node)
+            visited.update(component)
+            if len(component) < 2:
+                continue
+            nodes = list(component)
+            for idx, source in enumerate(nodes):
+                for target in nodes[idx + 1 :]:
+                    if target in self._adj.get(source, set()):
+                        continue
+                    if any(c in (",", "|") for c in target[3]):
+                        # Complex range, skip creating a transitive edge
+                        continue
+                    self.add_edge(source, target, bidirectional=True)
+                    added += 1
+        return added
+
     def get_component_by_provider(
         self, start: EpisodeNode
     ) -> dict[str, dict[str, dict[str | None, set[str]]]]:
