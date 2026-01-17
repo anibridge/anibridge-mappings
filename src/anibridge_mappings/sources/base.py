@@ -73,15 +73,14 @@ class EpisodeMappingSource(BaseSource, Protocol):
         ...
 
 
-DATA_DIR = Path("data")
-
-
 class CachedMetadataSource(MetadataSource):
     """Shared cache for serialized metadata providers."""
 
+    CACHE_VERSION: ClassVar[int] = 1
+    DATA_DIR: ClassVar[Path] = Path("data/meta")
+
     provider_key: ClassVar[str]
     cache_filename: ClassVar[str]
-    CACHE_VERSION: ClassVar[int] = 1
 
     def __init__(self, *, concurrency: int = 6) -> None:
         """Initialize the cached metadata provider.
@@ -211,7 +210,7 @@ class CachedMetadataSource(MetadataSource):
     def _load_cache(self) -> dict[str, dict[str | None, SourceMeta] | None]:
         """Load cached metadata from disk, if present."""
         path = self.cache_path
-        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        CachedMetadataSource.DATA_DIR.mkdir(parents=True, exist_ok=True)
         if not path.exists():
             return {}
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -241,7 +240,7 @@ class CachedMetadataSource(MetadataSource):
     def _persist_cache(self) -> None:
         """Persist the in-memory cache to disk."""
         path = self.cache_path
-        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        CachedMetadataSource.DATA_DIR.mkdir(parents=True, exist_ok=True)
         path.write_text(
             json.dumps(
                 {
@@ -272,7 +271,7 @@ class CachedMetadataSource(MetadataSource):
         Returns:
             Path: File path for the cache.
         """
-        return DATA_DIR / self.cache_filename
+        return CachedMetadataSource.DATA_DIR / self.cache_filename
 
     async def _fetch_entry(
         self,
