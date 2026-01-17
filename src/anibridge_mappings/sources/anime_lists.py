@@ -433,6 +433,39 @@ class AnimeListsSource(IdMappingSource, EpisodeMappingSource):
             key = (source_scope, provider, target_scope)
             if key in coverage:
                 continue
+            effective_total = total_episodes
+            target_meta = store.peek(provider, entry_id, target_scope)
+            if target_meta and target_meta.episodes and target_meta.episodes > 0:
+                max_source = target_meta.episodes - episode_offset
+                if max_source <= 0:
+                    log.debug(
+                        "Skipping default mapping for AniDB ID %s to %s:%s:%s "
+                        "because target episode limit %s is too small for offset %s.",
+                        anidb_id,
+                        provider,
+                        entry_id,
+                        target_scope,
+                        target_meta.episodes,
+                        episode_offset,
+                    )
+                    continue
+                effective_total = min(effective_total, max_source)
+                if effective_total < total_episodes:
+                    log.debug(
+                        "Capping default mapping for AniDB ID %s to %s:%s:%s at %s "
+                        "episodes due to target limit %s and offset %s.",
+                        anidb_id,
+                        provider,
+                        entry_id,
+                        target_scope,
+                        effective_total,
+                        target_meta.episodes,
+                        episode_offset,
+                    )
+
+            if effective_total <= 0:
+                continue
+
             self._link_full_episode_range(
                 anidb_id,
                 source_scope,
@@ -440,7 +473,7 @@ class AnimeListsSource(IdMappingSource, EpisodeMappingSource):
                 entry_id,
                 target_scope,
                 episode_offset,
-                total_episodes,
+                effective_total,
                 graph,
             )
 
