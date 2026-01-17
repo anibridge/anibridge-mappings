@@ -31,27 +31,24 @@ def infer_episode_mappings(
         return inferred
 
     for component in components:
-        grouped: dict[MetaKey, list[IdNode]] = {}
+        # Gather all meta for nodes in the component
+        meta_nodes: list[tuple[SourceMeta, IdNode]] = []
         for provider, entry_id, scope in component:
             meta = meta_store.peek(provider, entry_id, scope)
             if meta is None:
                 continue
             if meta.episodes is None or meta.episodes <= 0:
                 continue
-            key = _meta_key(meta)
-            grouped.setdefault(key, []).append((provider, entry_id, scope))
+            meta_nodes.append((meta, (provider, entry_id, scope)))
 
-        for meta_key, nodes in grouped.items():
-            if len(nodes) < 2:
-                continue
-            episode_range = _range_from_meta_key(meta_key)
-            if episode_range is None:
-                continue
-            for left, right in combinations(nodes, 2):
-                left_provider, left_id, left_scope = left
-                right_provider, right_id, right_scope = right
-                left_node = (left_provider, left_id, left_scope, episode_range)
-                right_node = (right_provider, right_id, right_scope, episode_range)
+        # Try all pairs for matching
+        for (meta1, node1), (meta2, node2) in combinations(meta_nodes, 2):
+            if _meta_match(meta1, meta2):
+                episode_range = _range_from_meta_key(_meta_key(meta1))
+                if episode_range is None:
+                    continue
+                left_node = (*node1, episode_range)
+                right_node = (*node2, episode_range)
                 inferred.add_edge(left_node, right_node)
 
     if inferred.node_count():
@@ -65,6 +62,21 @@ def infer_episode_mappings(
 def _meta_key(meta: SourceMeta) -> MetaKey:
     """Build a hashable metadata key from a SourceMeta instance."""
     return (meta.type, meta.episodes, meta.duration, meta.start_year)
+
+
+def _meta_match(meta1: SourceMeta, meta2: SourceMeta) -> bool:
+    """Check if two SourceMeta objects match under our inference rules."""
+    # Type and episodes must match exactly
+    if meta1.type != meta2.type:
+        return False
+    if meta1.episodes != meta2.episodes:
+        return False
+    # Allow nulls and empty as wildcard, else must match
+    d1, d2 = meta1.duration, meta2.duration
+    if (d1 not in (None, 0)) and (d2 not in (None, 0)) and (d1 != d2):
+        return False
+    y1, y2 = meta1.start_year, meta2.start_year
+    return not ((y1 not in (None, 0)) and (y2 not in (None, 0)) and (y1 != y2))
 
 
 def _range_from_meta_key(meta_key: MetaKey) -> str | None:
