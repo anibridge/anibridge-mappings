@@ -209,7 +209,7 @@ class EpisodeMappingGraph(_BaseGraph[EpisodeNode]):
                 for target in nodes[idx + 1 :]:
                     if target in self._adj.get(source, set()):
                         continue
-                    if any(c in (",", "|") for c in target[3]):
+                    if any(c in (",", "|") for c in source[3]):
                         # Complex range, skip creating a transitive edge
                         continue
                     self.add_edge(source, target, bidirectional=True)
