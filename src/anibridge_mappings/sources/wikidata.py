@@ -1,6 +1,11 @@
-"""ID source driven by the Wikidata SPARQL endpoint."""
+"""ID source driven by the Wikidata SPARQL endpoint.
+
+This source only collects Anime ID links for movies. Wikidata does not provide clear
+mappings for seasons, so this source omits TV show IDs to avoid ambiguity.
+"""
 
 import importlib.metadata
+import re
 from logging import getLogger
 from typing import Any
 
@@ -18,17 +23,20 @@ class WikidataSource(IdMappingSource):
     ENDPOINT_URL = "https://query.wikidata.org/sparql"
     QUERY = """
     SELECT DISTINCT ?item ?prop ?id WHERE {
-        ?item (p:P31/ps:P31/(wdt:P279*)) wd:Q1107.
+        ?item wdt:P31/wdt:P279* wd:Q20650540. # instance/subclass of 'anime film'
 
         VALUES ?prop {
-            wdt:P5646 wdt:P8729 wdt:P4086 wdt:P345
-            wdt:P4947 wdt:P4983 wdt:P4835
+            wdt:P5646 # anidb id
+            wdt:P8729 # anilist id
+            wdt:P345 # imdb id - there's a chance this is a show
+            wdt:P4086 # mal id
+            wdt:P4947 # tmdb movie id
+            wdt:P12196 # tvdb movie id
         }
         ?item ?prop ?id.
     }
-    LIMIT 50000
+    LIMIT 500000
     """
-    DEFAULT_SCOPE = "s1"
 
     def __init__(self) -> None:
         """Initialize the source cache.
@@ -74,15 +82,14 @@ class WikidataSource(IdMappingSource):
             IdMappingGraph: ID mapping graph for Wikidata links.
         """
         self._ensure_prepared()
-        # Map Wikidata property codes to local provider names and scope
-        prop_map: dict[str, tuple[str, bool]] = {
-            "P5646": ("anidb", False),
-            "P8729": ("anilist", False),
-            "P4086": ("mal", False),
-            "P345": ("imdb", False),
-            "P4947": ("tmdb_movie", False),
-            "P4983": ("tmdb_show", True),
-            "P4835": ("tvdb_show", True),
+        # Map Wikidata property codes to local provider names
+        prop_map: dict[str, str] = {
+            "P5646": "anidb",
+            "P8729": "anilist",
+            "P4086": "mal",
+            "P345": "imdb_movie",
+            "P4947": "tmdb_movie",
+            "P12196": "tvdb_movie",
         }
 
         graph = IdMappingGraph()
@@ -97,7 +104,7 @@ class WikidataSource(IdMappingSource):
             if not prop_code or prop_code not in prop_map:
                 continue
 
-            provider, is_scoped = prop_map[prop_code]
+            provider = prop_map[prop_code]
             raw_id = self._extract_str(binding, "id")
             if raw_id is None:
                 continue
@@ -106,13 +113,10 @@ class WikidataSource(IdMappingSource):
             if provider in {
                 "anidb",
                 "anilist",
+                "imdb_movie",
                 "mal",
                 "tmdb_movie",
-                "tmdb_show",
-                "tvdb_show",
             }:
-                import re
-
                 m = re.search(r"(\d+)(?!.*\d)", raw_id)
                 if not m:
                     continue
@@ -120,8 +124,7 @@ class WikidataSource(IdMappingSource):
             else:
                 entry_id = raw_id
 
-            scope = WikidataSource.DEFAULT_SCOPE if is_scoped else None
-            items.setdefault(item_uri, []).append((provider, entry_id, scope))
+            items.setdefault(item_uri, []).append((provider, entry_id, None))
 
         for nodes in items.values():
             deduped = list(dict.fromkeys(node for node in nodes if node[1]))
