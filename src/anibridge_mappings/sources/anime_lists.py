@@ -73,8 +73,9 @@ class AnimeListsSource(IdMappingSource, EpisodeMappingSource):
             tvdb_raw = (anime_el.get("tvdbid") or "").strip()
             tvdb = tvdb_raw if tvdb_raw.isdigit() else None
 
-            for imdb in imdb_ids:
-                nodes.append(("imdb", imdb, None))
+            if imdb_ids:  # Anime-Lists only supplies IMDB IDs for movies
+                nodes.extend(("imdb_movie", imdb, None) for imdb in imdb_ids)
+
             for tmdb_movie in tmdb_movie_ids:
                 nodes.append(("tmdb_movie", tmdb_movie, None))
             if tmdb_show:
@@ -393,7 +394,7 @@ class AnimeListsSource(IdMappingSource, EpisodeMappingSource):
 
         entries: list[tuple[str, str]] = []
         entries.extend(("tmdb_movie", tmdb_id) for tmdb_id in tmdb_movies)
-        entries.extend(("imdb", imdb_id) for imdb_id in imdb_ids)
+        entries.extend(("imdb_movie", imdb_id) for imdb_id in imdb_ids)
 
         deduped: list[tuple[str, str]] = []
         seen: set[tuple[str, str]] = set()

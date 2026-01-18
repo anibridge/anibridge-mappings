@@ -60,15 +60,13 @@ class AnimeAggregationsSource(IdMappingSource):
 
             nodes: list[tuple[str, str, str | None]] = [("anidb", anidb_id, None)]
             nodes.extend(
-                ("imdb", imdb_id, None) for imdb_id in self._collect_imdb(resources)
-            )
-            nodes.extend(
                 ("mal", mal_id, None) for mal_id in self._collect_mal(resources)
             )
 
+            imdb_ids = self._collect_imdb(resources)
             tmdb_shows, tmdb_movies = self._collect_tmdb(resources)
             if len(tmdb_shows) > 1:
-                log.warning(
+                log.debug(
                     "Multiple TMDB show IDs for AniDB %s; linking all candidates",
                     anidb_id,
                 )
@@ -77,6 +75,11 @@ class AnimeAggregationsSource(IdMappingSource):
                 for show_id in tmdb_shows
             )
             nodes.extend(("tmdb_movie", movie_id, None) for movie_id in tmdb_movies)
+
+            if imdb_ids and tmdb_movies:
+                nodes.extend(("imdb_movie", imdb_id, None) for imdb_id in imdb_ids)
+            elif imdb_ids and tmdb_shows:
+                nodes.extend(("imdb_show", imdb_id, None) for imdb_id in imdb_ids)
 
             deduped = list(dict.fromkeys(nodes))
             if len(deduped) >= 2:
