@@ -16,6 +16,7 @@ from anibridge_mappings.core.aggregator import (
     build_schema_payload,
     default_aggregator,
 )
+from anibridge_mappings.core.stats import build_stats
 
 log = logging.getLogger("anibridge.cli")
 
@@ -60,6 +61,11 @@ def parse_args() -> argparse.Namespace:
             "Also write minified and zstd-compressed variants alongside the main "
             "output (mappings.min.json and mappings.json.zst)."
         ),
+    )
+    parser.add_argument(
+        "--stats",
+        action="store_true",
+        help="Write a stats.json file with aggregation summary metrics.",
     )
     return parser.parse_args()
 
@@ -144,7 +150,7 @@ def main() -> None:
         sys.exit(2)
 
     try:
-        _artifacts, payload = asyncio.run(
+        artifacts, payload = asyncio.run(
             build_artifacts(args.schema_version, args.edits)
         )
     except KeyboardInterrupt:
@@ -158,6 +164,12 @@ def main() -> None:
         output_path,
         max(len(payload) - 1, 0),
     )
+
+    if args.stats:
+        stats_path = output_path.with_name("stats.json")
+        stats_payload = build_stats(artifacts, payload)
+        write_payload(stats_path, stats_payload, pretty=True)
+        log.info("Wrote %s", stats_path)
 
     if args.compress:
         minified_path = output_path.with_name(

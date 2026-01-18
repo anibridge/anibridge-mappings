@@ -168,3 +168,11 @@ class MetaStore:
             other (MetaStore): Store whose entries should merge into this one.
         """
         self._store.update(other._store)
+
+    def __len__(self) -> int:
+        """Return the number of stored metadata entries.
+
+        Returns:
+            int: Number of entries.
+        """
+        return len(self._store)
