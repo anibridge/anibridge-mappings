@@ -18,7 +18,6 @@ class AnimeAggregationsSource(IdMappingSource):
         "https://raw.githubusercontent.com/notseteve/AnimeAggregations/main/"
         "aggregate/AnimeToExternal.json"
     )
-    DEFAULT_SCOPE = "s1"
 
     def __init__(self) -> None:
         """Initialize the local cache for fetched entries."""
@@ -64,22 +63,11 @@ class AnimeAggregationsSource(IdMappingSource):
             )
 
             imdb_ids = self._collect_imdb(resources)
-            tmdb_shows, tmdb_movies = self._collect_tmdb(resources)
-            if len(tmdb_shows) > 1:
-                log.debug(
-                    "Multiple TMDB show IDs for AniDB %s; linking all candidates",
-                    anidb_id,
-                )
-            nodes.extend(
-                ("tmdb_show", show_id, AnimeAggregationsSource.DEFAULT_SCOPE)
-                for show_id in tmdb_shows
-            )
+            _, tmdb_movies = self._collect_tmdb(resources)
             nodes.extend(("tmdb_movie", movie_id, None) for movie_id in tmdb_movies)
 
             if imdb_ids and tmdb_movies:
                 nodes.extend(("imdb_movie", imdb_id, None) for imdb_id in imdb_ids)
-            elif imdb_ids and tmdb_shows:
-                nodes.extend(("imdb_show", imdb_id, None) for imdb_id in imdb_ids)
 
             deduped = list(dict.fromkeys(nodes))
             if len(deduped) >= 2:
