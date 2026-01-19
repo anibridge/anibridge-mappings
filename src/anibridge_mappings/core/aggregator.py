@@ -343,9 +343,11 @@ def default_aggregator() -> MappingAggregator:
     wikidata = WikidataSource()
 
     return MappingAggregator(
+        # Order matters for metadata; later sources have higher precedence
         metadata_sources=(
-            anilist,
             anime_offline_db,
+            anilist,
+            anime_aggregations,
             skyhook,
             tmdb,
         ),
