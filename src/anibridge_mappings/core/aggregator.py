@@ -9,7 +9,11 @@ from logging import getLogger
 from typing import Any
 
 from anibridge_mappings.core.edits import apply_edits, load_edits
-from anibridge_mappings.core.graph import EpisodeMappingGraph, IdMappingGraph
+from anibridge_mappings.core.graph import (
+    EpisodeMappingGraph,
+    IdMappingGraph,
+    ProvenanceContext,
+)
 from anibridge_mappings.core.inference import infer_episode_mappings
 from anibridge_mappings.core.meta import MetaStore
 from anibridge_mappings.core.validators import (
@@ -108,7 +112,14 @@ class MappingAggregator:
 
         inferred_graph = infer_episode_mappings(meta_store, id_graph)
         if inferred_graph.node_count():
-            episode_graph.add_graph(inferred_graph)
+            episode_graph.add_graph(
+                inferred_graph,
+                provenance=ProvenanceContext(
+                    stage="Inference: metadata-driven episode alignment",
+                    actor="Inference engine: metadata alignment",
+                    reason="Inferred episode links via cross-source metadata alignment",
+                ),
+            )
             log.info(
                 "Episode graph contains %d nodes after inference",
                 len(episode_graph.nodes()),
@@ -129,7 +140,13 @@ class MappingAggregator:
         else:
             log.info("Validation produced no issues")
 
-        transitive_edges = episode_graph.add_transitive_edges()
+        transitive_edges = episode_graph.add_transitive_edges(
+            provenance=ProvenanceContext(
+                stage="Graph enrichment: transitive closure",
+                actor="Graph expander: transitive closure",
+                reason="Added indirect links to improve mapping connectivity",
+            )
+        )
         if transitive_edges:
             log.info("Added %d transitive episode mapping edges", transitive_edges)
 
@@ -182,7 +199,18 @@ class MappingAggregator:
         combined = EpisodeMappingGraph()
         for provider in self._episode_sources:
             graph = provider.build_episode_graph(meta_store, id_graph)
-            combined.add_graph(graph)
+            context = ProvenanceContext(
+                stage="Source ingestion: episode mappings",
+                actor=f"Provider source: {provider.__class__.__name__}",
+                reason="Direct episode mappings supplied by the source provider",
+            )
+            for source_node, target_node in graph.iter_edges():
+                combined.add_edge(
+                    source_node,
+                    target_node,
+                    bidirectional=True,
+                    provenance=context,
+                )
         return combined
 
     async def _run_validators(
@@ -235,7 +263,24 @@ class MappingAggregator:
                     target_node,
                     issue.message,
                 )
-                episode_graph.remove_edge(source_node, target_node)
+                episode_graph.remove_edge(
+                    source_node,
+                    target_node,
+                    provenance=ProvenanceContext(
+                        stage="Validation: rule-based pruning",
+                        actor=f"Validator: {issue.validator}",
+                        reason="Removed mapping that failed validation rules",
+                        details={
+                            "message": issue.message,
+                            "validator": issue.validator,
+                            "source": issue.source,
+                            "target": issue.target,
+                            "source_range": issue.source_range,
+                            "target_range": issue.target_range,
+                            "details": issue.details,
+                        },
+                    ),
+                )
 
     def _dedupe_sources(self) -> tuple[BaseSource, ...]:
         """Deduplicate sources across all categories while preserving order."""

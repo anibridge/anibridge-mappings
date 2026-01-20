@@ -16,6 +16,7 @@ from anibridge_mappings.core.aggregator import (
     build_schema_payload,
     default_aggregator,
 )
+from anibridge_mappings.core.provenance import build_provenance_payload
 from anibridge_mappings.core.stats import build_stats
 
 log = logging.getLogger("anibridge.cli")
@@ -58,6 +59,14 @@ def parse_args() -> argparse.Namespace:
         "--stats",
         action="store_true",
         help="Write a stats.json file with aggregation summary metrics.",
+    )
+    parser.add_argument(
+        "--provenance",
+        action="store_true",
+        help=(
+            "Write a provenance.json file with per-mapping timelines for debugging "
+            "and UI usage."
+        ),
     )
     return parser.parse_args()
 
@@ -159,6 +168,12 @@ def main() -> None:
         stats_payload = build_stats(artifacts, payload)
         write_payload(stats_path, stats_payload, pretty=True)
         log.info("Wrote %s", stats_path)
+
+    if args.provenance:
+        provenance_path = output_path.with_name("provenance.json")
+        provenance_payload = build_provenance_payload(artifacts.episode_graph)
+        write_payload(provenance_path, provenance_payload, pretty=False)
+        log.info("Wrote %s", provenance_path)
 
     if args.compress:
         minified_path = output_path.with_name(

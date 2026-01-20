@@ -1,8 +1,10 @@
 """Graph implementation to store and query mappings."""
 
 from collections import deque
-from collections.abc import Iterable
-from typing import TypeVar
+from collections.abc import Iterable, Iterator
+from contextlib import contextmanager
+from dataclasses import dataclass
+from typing import Any, TypeVar
 
 NodeT = TypeVar("NodeT")
 
@@ -39,6 +41,18 @@ class _BaseGraph[NodeT]:
         if bidirectional:
             self._adj[b].add(a)
             self._pred[a].add(b)
+
+    def has_edge(self, a: NodeT, b: NodeT) -> bool:
+        """Check if an edge exists between `a` and `b`.
+
+        Args:
+            a (NodeT): Start node.
+            b (NodeT): End node.
+
+        Returns:
+            bool: True if an edge exists in either direction.
+        """
+        return b in self._adj.get(a, set()) or a in self._adj.get(b, set())
 
     def add_equivalence_class(self, nodes: Iterable[NodeT]) -> None:
         """Add an undirected equivalence class of nodes.
@@ -165,6 +179,29 @@ IdNode = tuple[str, str, str | None]  # (provider, id, scope)
 EpisodeNode = tuple[str, str, str | None, str]  # (provider, id, scope, episode_range)
 
 
+@dataclass(slots=True)
+class ProvenanceContext:
+    """Context used to record provenance events."""
+
+    stage: str
+    actor: str | None = None
+    reason: str | None = None
+    details: dict[str, Any] | None = None
+
+
+@dataclass(slots=True)
+class ProvenanceEvent:
+    """Recorded event describing a mapping change."""
+
+    seq: int
+    action: str
+    stage: str
+    actor: str | None
+    reason: str | None
+    effective: bool
+    details: dict[str, Any] | None = None
+
+
 class IdMappingGraph(_BaseGraph[IdNode]):
     """Undirected graph of provider IDs."""
 
@@ -189,7 +226,205 @@ class IdMappingGraph(_BaseGraph[IdNode]):
 class EpisodeMappingGraph(_BaseGraph[EpisodeNode]):
     """Graph of episode range mappings."""
 
-    def add_transitive_edges(self) -> int:
+    def __init__(self) -> None:
+        """Initialize empty graph with provenance tracking."""
+        super().__init__()
+        self._provenance: dict[
+            tuple[EpisodeNode, EpisodeNode], list[ProvenanceEvent]
+        ] = {}
+        self._provenance_seq = 0
+        self._provenance_context: ProvenanceContext | None = None
+
+    def _node_key(self, node: EpisodeNode) -> tuple[str, str, str, str]:
+        """Key function for sorting nodes."""
+        provider, entry_id, scope, episode_range = node
+        return (
+            str(provider),
+            str(entry_id),
+            "" if scope is None else str(scope),
+            str(episode_range),
+        )
+
+    def _edge_key(
+        self, a: EpisodeNode, b: EpisodeNode
+    ) -> tuple[EpisodeNode, EpisodeNode]:
+        """Key function for sorting undirected edges."""
+        left, right = sorted((a, b), key=self._node_key)
+        return (left, right)
+
+    def _record_event(
+        self,
+        action: str,
+        a: EpisodeNode,
+        b: EpisodeNode,
+        context: ProvenanceContext | None,
+        *,
+        effective: bool,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        """Record a provenance event for an edge modification."""
+        ctx = context or self._provenance_context
+        stage = ctx.stage if ctx else "unknown"
+        actor = ctx.actor if ctx else None
+        reason = ctx.reason if ctx else None
+        merged_details: dict[str, Any] | None = None
+        if ctx and ctx.details:
+            merged_details = dict(ctx.details)
+        if details:
+            merged_details = {**(merged_details or {}), **details}
+        self._provenance_seq += 1
+        event = ProvenanceEvent(
+            seq=self._provenance_seq,
+            action=action,
+            stage=stage,
+            actor=actor,
+            reason=reason,
+            effective=effective,
+            details=merged_details,
+        )
+        key = self._edge_key(a, b)
+        self._provenance.setdefault(key, []).append(event)
+
+    def add_edge(
+        self,
+        a: EpisodeNode,
+        b: EpisodeNode,
+        bidirectional: bool = True,
+        *,
+        provenance: ProvenanceContext | None = None,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        """Add an edge between nodes with provenance.
+
+        Args:
+            a (EpisodeNode): Start node.
+            b (EpisodeNode): End node.
+            bidirectional (bool): If True, adds both directions.
+            provenance (ProvenanceContext | None): Context for the addition.
+            details (dict[str, Any] | None): Additional details for the event.
+        """
+        existed = self.has_edge(a, b)
+        super().add_edge(a, b, bidirectional=bidirectional)
+        self._record_event(
+            "add",
+            a,
+            b,
+            provenance,
+            effective=not existed,
+            details=details,
+        )
+
+    def remove_edge(
+        self,
+        a: EpisodeNode,
+        b: EpisodeNode,
+        *,
+        provenance: ProvenanceContext | None = None,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        """Remove an edge between `a` and `b` if present (both directions).
+
+        Args:
+            a (EpisodeNode): Start node.
+            b (EpisodeNode): End node.
+            provenance (ProvenanceContext | None): Context for the removal.
+            details (dict[str, Any] | None): Additional details for the event.
+        """
+        existed = self.has_edge(a, b)
+        super().remove_edge(a, b)
+        self._record_event(
+            "remove",
+            a,
+            b,
+            provenance,
+            effective=existed,
+            details=details,
+        )
+
+    @contextmanager
+    def provenance_context(self, context: ProvenanceContext) -> Iterator[None]:
+        """Temporarily set a default provenance context."""
+        prior = self._provenance_context
+        self._provenance_context = context
+        try:
+            yield
+        finally:
+            self._provenance_context = prior
+
+    def iter_edges(self) -> list[tuple[EpisodeNode, EpisodeNode]]:
+        """Return unique undirected edges for this graph.
+
+        Returns:
+            list[tuple[EpisodeNode, EpisodeNode]]: List of unique edges.
+        """
+        seen: set[tuple[EpisodeNode, EpisodeNode]] = set()
+        edges: list[tuple[EpisodeNode, EpisodeNode]] = []
+        for node in sorted(self.nodes(), key=self._node_key):
+            for neighbor in sorted(self.neighbors(node), key=self._node_key):
+                key = self._edge_key(node, neighbor)
+                if key in seen:
+                    continue
+                seen.add(key)
+                edges.append(key)
+        return edges
+
+    def add_graph(
+        self,
+        other: _BaseGraph[EpisodeNode],
+        *,
+        provenance: ProvenanceContext | None = None,
+    ) -> None:
+        """Merge another graph's edges into this graph with provenance.
+
+        Args:
+            other (_BaseGraph[EpisodeNode]): Graph to merge.
+            provenance (ProvenanceContext | None): Context for the additions.
+        """
+        if isinstance(other, EpisodeMappingGraph):
+            for source_node, target_node in other.iter_edges():
+                self.add_edge(
+                    source_node,
+                    target_node,
+                    bidirectional=True,
+                    provenance=provenance,
+                )
+            return
+        for node in other.nodes():
+            self._ensure_node(node)
+        for node in other.nodes():
+            for neighbor in other.neighbors(node):
+                self.add_edge(
+                    node,
+                    neighbor,
+                    bidirectional=False,
+                    provenance=provenance,
+                )
+
+    def provenance_items(
+        self,
+    ) -> list[tuple[EpisodeNode, EpisodeNode, list[ProvenanceEvent]]]:
+        """Return provenance entries for all observed edges.
+
+        Returns:
+            list[tuple[EpisodeNode, EpisodeNode, list[ProvenanceEvent]]]: List of edges
+                with events.
+        """
+        items: list[tuple[EpisodeNode, EpisodeNode, list[ProvenanceEvent]]] = []
+        seen: set[tuple[EpisodeNode, EpisodeNode]] = set()
+        for edge in self.iter_edges():
+            if edge in self._provenance:
+                items.append((edge[0], edge[1], list(self._provenance[edge])))
+                seen.add(edge)
+        for edge, events in self._provenance.items():
+            if edge in seen:
+                continue
+            items.append((edge[0], edge[1], list(events)))
+        items.sort(key=lambda item: (self._node_key(item[0]), self._node_key(item[1])))
+        return items
+
+    def add_transitive_edges(
+        self, *, provenance: ProvenanceContext | None = None
+    ) -> int:
         """Add edges between all nodes in each connected component.
 
         Returns:
@@ -212,7 +447,12 @@ class EpisodeMappingGraph(_BaseGraph[EpisodeNode]):
                     if any(c in (",", "|") for c in source[3]):
                         # Complex range, skip creating a transitive edge
                         continue
-                    self.add_edge(source, target, bidirectional=True)
+                    self.add_edge(
+                        source,
+                        target,
+                        bidirectional=True,
+                        provenance=provenance,
+                    )
                     added += 1
         return added
 

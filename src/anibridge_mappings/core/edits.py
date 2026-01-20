@@ -10,7 +10,7 @@ from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap
 from ruamel.yaml.scalarstring import DoubleQuotedScalarString
 
-from anibridge_mappings.core.graph import EpisodeMappingGraph
+from anibridge_mappings.core.graph import EpisodeMappingGraph, ProvenanceContext
 
 log = logging.getLogger(__name__)
 
@@ -167,7 +167,15 @@ def apply_edits(
             target = _parse_descriptor(tgt_desc)
             config = config or {}
             ranges = {k: v for k, v in config.items() if not k.startswith("$")}
-            _apply_replace(episode_graph, source, target, ranges, scope_index)
+            _apply_replace(
+                episode_graph,
+                source,
+                target,
+                ranges,
+                scope_index,
+                source_descriptor=src_desc,
+                target_descriptor=tgt_desc,
+            )
 
         edited_scopes.add(source)
 
@@ -202,6 +210,9 @@ def _clear_source_target_ranges(
     graph: EpisodeMappingGraph,
     source_nodes: set[tuple[str, str, str | None, str]],
     target_nodes: set[tuple[str, str, str | None, str]],
+    *,
+    source_descriptor: str,
+    target_descriptor: str,
 ) -> None:
     """Remove existing edges between source and target node sets."""
     if not source_nodes or not target_nodes:
@@ -210,7 +221,21 @@ def _clear_source_target_ranges(
     for src_node in source_nodes:
         for neighbor in graph.neighbors(src_node):
             if neighbor in target_nodes:
-                graph.remove_edge(src_node, neighbor)
+                graph.remove_edge(
+                    src_node,
+                    neighbor,
+                    provenance=ProvenanceContext(
+                        stage="Manual overrides: clear prior links",
+                        actor="Manual edit overrides (mappings.edits.yaml)",
+                        reason="Cleared existing links before explicit replacement",
+                        details={
+                            "source_descriptor": source_descriptor,
+                            "target_descriptor": target_descriptor,
+                            "source_range": src_node[3],
+                            "target_range": neighbor[3],
+                        },
+                    ),
+                )
 
 
 def _apply_replace(
@@ -219,11 +244,20 @@ def _apply_replace(
     target: Scope,
     ranges: dict[str, str],
     scope_index: dict[Scope, set[tuple[str, str, str | None, str]]],
+    *,
+    source_descriptor: str,
+    target_descriptor: str,
 ) -> None:
     """Replaces mappings for a specific target scope."""
     source_nodes = scope_index.get(source, set())
     target_nodes = scope_index.get(target, set())
-    _clear_source_target_ranges(graph, source_nodes, target_nodes)
+    _clear_source_target_ranges(
+        graph,
+        source_nodes,
+        target_nodes,
+        source_descriptor=source_descriptor,
+        target_descriptor=target_descriptor,
+    )
 
     if not ranges:
         return
@@ -231,6 +265,21 @@ def _apply_replace(
     for src_rng, tgt_rng in ranges.items():
         src_node = (source[0], source[1], source[2], src_rng)
         tgt_node = (target[0], target[1], target[2], tgt_rng)
-        graph.add_edge(src_node, tgt_node, bidirectional=True)
+        graph.add_edge(
+            src_node,
+            tgt_node,
+            bidirectional=True,
+            provenance=ProvenanceContext(
+                stage="Manual overrides: add replacement links",
+                actor="Manual edit overrides (mappings.edits.yaml)",
+                reason="Added explicit replacement mapping from the edits file",
+                details={
+                    "source_descriptor": source_descriptor,
+                    "target_descriptor": target_descriptor,
+                    "source_range": src_rng,
+                    "target_range": tgt_rng,
+                },
+            ),
+        )
         scope_index.setdefault(source, set()).add(src_node)
         scope_index.setdefault(target, set()).add(tgt_node)

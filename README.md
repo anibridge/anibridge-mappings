@@ -127,6 +127,7 @@ Options:
 - `--edits`: path to the edits file (default: `mappings.edits.yaml`)
 - `--compress`: emit minified and zstd-compressed outputs to `data/out/`
 - `--stats`: emit `stats.json` to `data/out/`
+- `--provenance`: emit `provenance.json` with per-mapping timelines
 - `--log-level`: set logging verbosity (default: `INFO`)
 
 _Note: TMDB metadata fetching requires a bearer token set in a `TMDB_API_KEY` environment variable (v4 API token). Without it, TMDB metadata will be skipped._
