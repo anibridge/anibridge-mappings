@@ -357,7 +357,7 @@ class AnimeListsSource(IdMappingSource, EpisodeMappingSource):
 
         if tmdb_allowed and tmdb_id.isdigit():
             specs.append(("tmdb_show", tmdb_id, normalized_tmdb_scope, tmdb_offset))
-        elif tmdb_id:
+        elif tmdb_id and tmdb_allowed:
             log.debug(
                 "Skipping TMDB mapping for AniDB ID %s because TMDB ID %s "
                 "is non-numeric.",
