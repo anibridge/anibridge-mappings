@@ -32,16 +32,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--out",
-        default="data/out/mappings.json",
-        help=(
-            "Destination file for the generated mappings "
-            "(default: data/out/mappings.json)"
-        ),
-    )
-    parser.add_argument(
-        "--schema-version",
-        default=None,
-        help="Schema version string to record in $meta",
+        default="data/out/",
+        help=("Destination directory for the generated files (default: data/out/)"),
     )
     parser.add_argument(
         "--edits",
@@ -52,7 +44,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--log-level",
         default="INFO",
-        help="Logging level (DEBUG, INFO, WARNING, ERROR). Default: INFO",
+        help="Logging level (DEBUG, INFO, WARNING, ERROR). (default: INFO)",
     )
     parser.add_argument(
         "--compress",
@@ -87,7 +79,6 @@ def configure_logging(level: str) -> None:
 
 
 async def build_artifacts(
-    schema_version: str,
     edits_file: str,
 ) -> tuple[AggregationArtifacts, dict[str, Any]]:
     """Run the aggregation pipeline and return artifacts plus serialized payload.
@@ -103,7 +94,6 @@ async def build_artifacts(
     artifacts = await aggregator.run(edits_file=edits_file)
     payload = build_schema_payload(
         artifacts.episode_graph,
-        schema_version=schema_version,
         generated_on=datetime.now(UTC),
     )
     return artifacts, payload
@@ -150,14 +140,13 @@ def main() -> None:
         sys.exit(2)
 
     try:
-        artifacts, payload = asyncio.run(
-            build_artifacts(args.schema_version, args.edits)
-        )
+        artifacts, payload = asyncio.run(build_artifacts(args.edits))
     except KeyboardInterrupt:
         log.warning("Mapping generation interrupted")
         sys.exit(130)
 
-    output_path = Path(args.out)
+    output_dir = Path(args.out)
+    output_path = output_dir / "mappings.json"
     write_payload(output_path, payload, pretty=True)
     log.info(
         "Wrote %s with %d provider scopes",

@@ -29,11 +29,11 @@ _A huge thank you to the primary mappings maintainer, [@LuceoEtzio](https://gith
 
 | Source                                                                                            | Metadata | ID Mappings | Episode Mappings | Providers                             |
 | ------------------------------------------------------------------------------------------------- | -------- | ----------- | ---------------- | ------------------------------------- |
-| [Anime-Lists/anime-lists](https://github.com/Anime-Lists/anime-lists)                             | No       | Yes         | Yes              | AniDB, TVDB, TMDB, IMDB               |
+| [Anime-Lists/anime-lists](https://github.com/Anime-Lists/anime-lists)                             | No       | Yes         | Yes              | AniDB, IMDB, TMDB, TVDB               |
 | [manami-project/anime-offline-database](https://github.com/manami-project/anime-offline-database) | Yes      | Yes         | No               | AniDB, AniList, MAL                   |
-| [notseteve/AnimeAggregations](https://github.com/notseteve/AnimeAggregations)                     | No       | Yes         | No               | AniDB, IMDB, MAL, TMDB                |
-| [varoOP/shinkro-mapping](https://github.com/varoOP/shinkro-mapping)                               | No       | Yes         | Yes              | MAL, TVDB, TMDB                       |
-| [Wikidata](https://query.wikidata.org/)                                                           | Not Yet  | Yes         | No               | AniDB, AniList, MAL, TVDB, TMDB, IMDB |
+| [notseteve/AnimeAggregations](https://github.com/notseteve/AnimeAggregations)                     | Yes      | Yes         | No               | AniDB, IMDB, MAL, TMDB                |
+| [varoOP/shinkro-mapping](https://github.com/varoOP/shinkro-mapping)                               | No       | Yes         | Yes              | MAL, TMDB, TVDB                       |
+| [Wikidata](https://query.wikidata.org/)                                                           | Not Yet  | Yes         | No               | AniDB, AniList, IMDB, MAL, TMDB, TVDB |
 | [AniList GraphQL](https://anilist.co)                                                             | Yes      | Not Yet     | No               | AniList                               |
 | [Sonarr Skyhook](http://skyhook.sonarr.tv/)                                                       | Yes      | Not Yet     | No               | TVDB                                  |
 | [TMDB API](https://www.themoviedb.org/documentation/api)                                          | Yes      | No          | No               | TMDB                                  |
@@ -52,7 +52,7 @@ The output is a JSON object where each key is a **source descriptor** and each v
 provider:id[:scope]
 ```
 
-- `provider`: one of `anidb`, `anilist`, `mal`, `imdb_movie`, `imdb_show`, `tmdb_show`, `tmdb_movie`, `tvdb_show`.
+- `provider`: one of `anidb`, `anilist`, `imdb_movie`, `imdb_show`, `mal`, `tmdb_show`, `tmdb_movie`, `tvdb_show`.
 - `id`: the provider-specific identifier (e.g. AniDB ID `1234` or TMDB ID `tt1234567`).
 - `scope`: is optional and used to denote some type of subsetting. For the purposes of this dataset, they will be used to denote a season (e.g. `s0`, `s1`, etc). Certain providers may not use scopes such as AniList and MAL.
 
@@ -124,7 +124,6 @@ uv run ./main.py
 Options:
 
 - `--out`: output file path (default: `data/out/mappings.json`)
-- `--schema-version`: override the schema version in `$meta`
 - `--edits`: path to the edits file (default: `mappings.edits.yaml`)
 - `--compress`: emit minified and zstd-compressed outputs to `data/out/`
 - `--stats`: emit `stats.json` to `data/out/`
