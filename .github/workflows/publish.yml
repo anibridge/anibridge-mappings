@@ -43,12 +43,14 @@ jobs:
           echo "release_tag=mappings-$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
 
       - name: Cache metadata
+        id: cache-meta
         uses: actions/cache@v5
         with:
           path: data/meta
-          key: meta-${{ runner.os }}-${{ steps.vars.outputs.cache_month }}
+          key: meta-${{ steps.vars.outputs.cache_month }}-${{ github.run_id }}
           restore-keys: |
-            meta-${{ runner.os }}-
+            meta-${{ steps.vars.outputs.cache_month }}-
+            meta-
 
       - name: Determine previous release
         id: prevrel
