@@ -137,49 +137,47 @@ jobs:
           name: data-out
           path: /tmp/artifact
 
-      - name: Create or update daily release
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Prepare release assets
+        shell: bash
         run: |
           set -euo pipefail
-          tag="${{ needs.build.outputs.release_tag }}"
-          date_str="${{ needs.build.outputs.release_date }}"
-          out_dir="/tmp/artifact/$OUTPUT_DIR"
+          out_dir="/tmp/artifact/${{ env.OUTPUT_DIR }}"
           if [ ! -d "$out_dir" ]; then
             echo "Missing artifact output dir: $out_dir" >&2
             find /tmp/artifact -maxdepth 4 -type d -print >&2 || true
             exit 1
           fi
 
-          # Re-runs for the same day should replace the release.
-          gh release view "$tag" >/dev/null 2>&1 && gh release delete "$tag" -y --cleanup-tag || true
-          gh release create "$tag" \
-            --title "Mappings $date_str" \
-            --notes "Automated daily mappings build."
+          rm -rf /tmp/release-assets
+          mkdir -p /tmp/release-assets
 
           shopt -s nullglob
-          mapfile -t files < <(find "$out_dir" -type f -print)
-          if [ ${#files[@]} -eq 0 ]; then
+          while IFS= read -r -d '' file; do
+            rel="${file#"$out_dir/"}"
+            asset_name="${rel//\//__}"
+            cp "$file" "/tmp/release-assets/$asset_name"
+          done < <(find "$out_dir" -type f -print0)
+
+          if [ -z "$(ls -A /tmp/release-assets)" ]; then
             echo "No files found in $out_dir" >&2
             exit 1
           fi
 
-          for file in "${files[@]}"; do
-            rel="${file#"$out_dir/"}"
-            asset_name="${rel//\//__}"
-            gh release upload "$tag" "$file#$asset_name" --clobber
-          done
+      - name: Create or update daily release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.build.outputs.release_tag }}
+          name: Mappings ${{ needs.build.outputs.release_date }}
+          body: Automated daily mappings build for ${{ needs.build.outputs.release_date }}.
+          files: /tmp/release-assets/*
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 
       - name: Keep only last 30 releases
+        uses: dev-drprasad/delete-older-releases@v0.3.4
+        with:
+          keep_latest: 30
+          delete_tags: true
         env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          mapfile -t tags < <(gh release list --limit 200 --json tagName --jq '.[].tagName')
-          if [ ${#tags[@]} -le 30 ]; then
-            exit 0
-          fi
-
-          for tag in "${tags[@]:30}"; do
-            gh release delete "$tag" -y --cleanup-tag || true
-          done
+          GITHUB_TOKEN: ${{ github.token }}
