@@ -2,9 +2,9 @@
   "recommendations": [
     "astral-sh.ty",
     "charliermarsh.ruff",
+    "dbaeumer.vscode-eslint",
     "eamodio.gitlens",
     "esbenp.prettier-vscode",
-    "mechatroner.rainbow-csv",
     "ms-python.python",
     "redhat.vscode-yaml",
     "yzhang.markdown-all-in-one"
