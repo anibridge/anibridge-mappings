@@ -141,10 +141,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          out_dir="/tmp/artifact/${{ env.OUTPUT_DIR }}"
+          out_dir="/tmp/artifact"
+          find /tmp/artifact -maxdepth 4 -type d -print >&2 || true # debugging
           if [ ! -d "$out_dir" ]; then
             echo "Missing artifact output dir: $out_dir" >&2
-            find /tmp/artifact -maxdepth 4 -type d -print >&2 || true
             exit 1
           fi
 
