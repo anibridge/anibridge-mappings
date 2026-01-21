@@ -91,8 +91,8 @@ class AnimeOfflineDatabaseSource(MetadataSource, IdMappingSource):
                 continue
 
             parsed_type = self._parse_type_string(entry.type) if entry.type else None
-            for provider, entry_id in providers:
-                meta = store.get(provider, entry_id)
+            for provider, entry_id, scope in providers:
+                meta = store.get(provider, entry_id, scope)
                 if parsed_type is not None:
                     meta.type = parsed_type
                 if entry.episodes is not None:
@@ -110,8 +110,8 @@ class AnimeOfflineDatabaseSource(MetadataSource, IdMappingSource):
         graph = IdMappingGraph()
         for entry in self._require_entries():
             providers = [
-                (provider, entry_id, None)
-                for provider, entry_id in self._collect_provider_ids(entry)
+                (provider, entry_id, scope)
+                for provider, entry_id, scope in self._collect_provider_ids(entry)
             ]
             if len(providers) >= 2:
                 graph.add_equivalence_class(providers)
@@ -125,18 +125,19 @@ class AnimeOfflineDatabaseSource(MetadataSource, IdMappingSource):
 
     def _collect_provider_ids(
         self, entry: AnimeOfflineDatabaseEntry
-    ) -> list[tuple[str, str]]:
+    ) -> list[tuple[str, str, str | None]]:
         """Return parsed provider/ID tuples for an entry."""
         parsed_sources = [self._parse_source_string(source) for source in entry.sources]
         return [source for source in parsed_sources if source is not None]
 
     @staticmethod
-    def _parse_source_string(source: str) -> tuple[str, str] | None:
+    def _parse_source_string(source: str) -> tuple[str, str, str | None] | None:
         """Parse a source string into provider and ID."""
         for provider, pattern in AnimeOfflineDatabaseSource._SOURCE_PATTERNS:
             match = pattern.match(source)
+            # TODO: could be better - there's a chance of losing s0 anidb mappings here
             if match:
-                return provider, match.group(1)
+                return provider, match.group(1), None if provider != "anidb" else "s1"
         return None
 
     @staticmethod

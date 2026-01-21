@@ -114,7 +114,10 @@ class AnimeAggregationsSource(IdMappingSource, MetadataSource):
             if not isinstance(resources, dict):
                 continue
 
-            nodes: list[tuple[str, str, str | None]] = [("anidb", anidb_id, None)]
+            # TODO: could be better - there's a chance of losing s0 mappings here
+            nodes: list[tuple[str, str, str | None]] = [
+                ("anidb", anidb_id, AnimeAggregationsSource.DEFAULT_SCOPE)
+            ]
             nodes.extend(
                 ("mal", mal_id, None) for mal_id in self._collect_mal(resources)
             )

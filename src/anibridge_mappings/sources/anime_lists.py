@@ -54,7 +54,16 @@ class AnimeListsSource(IdMappingSource, EpisodeMappingSource):
                 log.warning("Anime entry missing AniDB ID; skipping.")
                 continue
 
-            nodes: list[tuple[str, str, str | None]] = [("anidb", anidb_id, None)]
+            source_scopes = {
+                self._scope_from_attr(mapping_el.get("anidbseason"))
+                for mapping_el in anime_el.findall("mapping-list/mapping")
+            }
+            # TODO: is it actually ever possible for a mapping to NOT include s1?
+            source_scopes.add(AnimeListsSource.DEFAULT_SCOPE)
+
+            nodes: list[tuple[str, str, str | None]] = [
+                ("anidb", anidb_id, scope) for scope in source_scopes
+            ]
 
             imdb_ids = self._split_ids(anime_el.get("imdbid"))
             tmdb_movie_ids = self._split_ids(anime_el.get("tmdbid"))
