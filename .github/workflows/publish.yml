@@ -24,6 +24,7 @@ env:
 
 jobs:
   build-and-publish:
+    environment: publish
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
