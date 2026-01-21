@@ -105,10 +105,10 @@ Example:
 
 ```yaml
 anilist:12345: # Some comment about this mapping
-	tvdb_show:98765:s1:
-		"1-12": "1-12"
-	tmdb_show:54321:s1:
-		"1-12": "1-12"
+  tvdb_show:98765:s1:
+    "1-12": "1-12"
+  tmdb_show:54321:s1:
+    "1-12": "1-12"
 ```
 
 When the pipeline runs, it removes any existing mappings between the specified source and target scopes and replaces them with your entries.

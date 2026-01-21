@@ -1,4 +1,16 @@
 {
+  "[css]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.tabSize": 2
+  },
+  "[html]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.tabSize": 2
+  },
+  "[javascript][typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.tabSize": 2
+  },
   "[json]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode",
     "editor.tabSize": 2
@@ -14,9 +26,7 @@
     "prettier.useTabs": false,
     "prettier.proseWrap": "never"
   },
-  "files.associations": {
-    "wrangler.json": "jsonc"
-  },
+  "files.associations": { "wrangler.json": "jsonc" },
   "editor.detectIndentation": false,
   "editor.formatOnSave": true,
   "editor.insertSpaces": true,

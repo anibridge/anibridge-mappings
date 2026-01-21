@@ -2,28 +2,18 @@
   "name": "anibridge-mappings",
   "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
   "features": {
-    "ghcr.io/devcontainers/features/python:1": {
-      "version": "3.13"
-    },
     "ghcr.io/devcontainers/features/github-cli:1": {},
-    "ghcr.io/va-h/devcontainers-features/uv:1": {
-      "shellautocompletion": true
-    },
-    "ghcr.io/devcontainers/features/node:1": {
-      "version": "22"
-    },
-    "ghcr.io/joedmck/devcontainer-features/wrangler:1": {
-      "version": "latest"
-    }
+    "ghcr.io/va-h/devcontainers-features/uv:1": { "shellautocompletion": true },
+    "ghcr.io/devcontainers/features/node:1": { "version": "25" }
   },
   "customizations": {
     "vscode": {
       "extensions": [
         "astral-sh.ty",
         "charliermarsh.ruff",
+        "dbaeumer.vscode-eslint",
         "eamodio.gitlens",
         "esbenp.prettier-vscode",
-        "mechatroner.rainbow-csv",
         "ms-python.python",
         "redhat.vscode-yaml",
         "yzhang.markdown-all-in-one"
@@ -31,7 +21,5 @@
     }
   },
   "postCreateCommand": "uv sync --all-packages ; (cd api && npm i)",
-  "containerEnv": {
-    "UV_LINK_MODE": "copy"
-  }
+  "containerEnv": { "UV_LINK_MODE": "copy" }
 }
