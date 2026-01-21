@@ -31,14 +31,33 @@ export type ProvenancePayload = {
   $meta?: Record<string, unknown>;
 };
 
+const PROVENANCE_URL =
+  "https://github.com/anibridge/anibridge-mappings/releases/latest/download/provenance.json";
+
 let provenancePromise: Promise<ProvenancePayload> | null = null;
 
 export const getProvenance = async (): Promise<ProvenancePayload> => {
+  const EDGE_CACHE_TTL = 6 * 60 * 60;
+
   if (!provenancePromise) {
-    provenancePromise = import("../../../data/out/provenance.json").then(
-      (module) => module.default as ProvenancePayload,
-    );
+    provenancePromise = (async () => {
+      const init: any = {
+        headers: { Accept: "application/json" },
+        cf: { cacheTtl: EDGE_CACHE_TTL, cacheEverything: true },
+      };
+      const res = await fetch(PROVENANCE_URL, init);
+      if (!res.ok) {
+        throw new Error(
+          `Failed to fetch mappings: ${res.status} ${res.statusText}`,
+        );
+      }
+      return (await res.json()) as ProvenancePayload;
+    })().catch((err) => {
+      provenancePromise = null;
+      throw err;
+    });
   }
+
   return provenancePromise;
 };
 
