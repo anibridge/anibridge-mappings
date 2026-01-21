@@ -20,31 +20,63 @@ concurrency:
 
 env:
   OUTPUT_DIR: "data/out"
-  OUTPUT_BRANCH: "v3"
 
 jobs:
-  build-and-publish:
+  build:
     environment: publish
     runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.vars.outputs.release_tag }}
+      release_date: ${{ steps.vars.outputs.release_date }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - name: Compute cache month
-        id: cachevars
+      - name: Compute workflow vars
+        id: vars
         run: |
           set -euo pipefail
-          echo "month=$(date -u +%Y-%m)" >> "$GITHUB_OUTPUT"
+          echo "cache_month=$(date -u +%Y-%m)" >> "$GITHUB_OUTPUT"
+          echo "release_date=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+          echo "release_tag=mappings-$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
 
       - name: Cache metadata
         uses: actions/cache@v5
         with:
           path: data/meta
-          key: meta-${{ runner.os }}-${{ steps.cachevars.outputs.month }}
+          key: meta-${{ runner.os }}-${{ steps.vars.outputs.cache_month }}
           restore-keys: |
             meta-${{ runner.os }}-
+
+      - name: Determine previous release
+        id: prevrel
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          today="${{ steps.vars.outputs.release_tag }}"
+          prev=$(gh release list --limit 50 --json tagName --jq '.[].tagName' | grep -vx "$today" | head -n 1 || true)
+          echo "previous_tag=$prev" >> "$GITHUB_OUTPUT"
+
+      - name: Download previous mappings.json
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          prev="${{ steps.prevrel.outputs.previous_tag }}"
+          if [ -n "$prev" ]; then
+            rm -rf /tmp/prev-release
+            mkdir -p /tmp/prev-release
+            gh release download "$prev" -p "data-out.zip" -D /tmp/prev-release || true
+            if ls /tmp/prev-release/*.zip >/dev/null 2>&1; then
+              unzip -p /tmp/prev-release/*.zip "data/out/mappings.json" > /tmp/mappings.old.json || true
+            fi
+          fi
+          if [ ! -s /tmp/mappings.old.json ]; then
+            : > /tmp/mappings.old.json
+          fi
 
       - name: Set up uv
         uses: astral-sh/setup-uv@v7
@@ -58,35 +90,22 @@ jobs:
         run: |
           uv run ./main.py --out "$OUTPUT_DIR" --compress --stats --provenance
 
-      - name: Capture previous mappings
-        id: prev
+      - name: Package output
         run: |
           set -euo pipefail
-          git fetch origin "$OUTPUT_BRANCH" --depth=1 || true
-          if git rev-parse --verify "origin/$OUTPUT_BRANCH" >/dev/null 2>&1; then
-            git show "origin/$OUTPUT_BRANCH:$OUTPUT_DIR/mappings.json" > /tmp/mappings.old.json || true
-          else
-            : > /tmp/mappings.old.json
+          rm -f /tmp/data-out.zip
+          if [ ! -d "$OUTPUT_DIR" ]; then
+            echo "Missing $OUTPUT_DIR" >&2
+            exit 1
           fi
+          zip -r /tmp/data-out.zip "$OUTPUT_DIR"
 
-      - name: Publish output to branch
-        if: ${{ github.event_name != 'pull_request' }}
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          rm -rf /tmp/output-branch
-          mkdir -p /tmp/output-branch
-          cp -R "$OUTPUT_DIR" /tmp/output-branch/
-
-          git checkout --orphan "$OUTPUT_BRANCH"
-          git reset --hard
-          git clean -fdx
-          cp -R /tmp/output-branch/* .
-          git add -A
-          git commit -m "Update mappings ($(date -u +%Y-%m-%d))"
-          git push --force origin "$OUTPUT_BRANCH"
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: data-out
+          path: /tmp/data-out.zip
+          if-no-files-found: error
 
       - name: Write workflow summary
         if: always()
@@ -113,3 +132,50 @@ jobs:
               echo "mappings.json diff unavailable."
             fi
           } >> "$GITHUB_STEP_SUMMARY"
+
+  publish-release:
+    if: ${{ github.event_name != 'pull_request' }}
+    needs: build
+    environment: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: data-out
+          path: /tmp
+
+      - name: Create or update daily release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="${{ needs.build.outputs.release_tag }}"
+          date_str="${{ needs.build.outputs.release_date }}"
+          asset="/tmp/data-out.zip"
+          if [ ! -f "$asset" ]; then
+            echo "Missing release asset: $asset" >&2
+            exit 1
+          fi
+
+          # Re-runs for the same day should replace the release.
+          gh release view "$tag" >/dev/null 2>&1 && gh release delete "$tag" -y --cleanup-tag || true
+          gh release create "$tag" "$asset" \
+            --title "Mappings $date_str" \
+            --notes "Automated daily mappings build."
+
+      - name: Keep only last 30 releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mapfile -t tags < <(gh release list --limit 200 --json tagName --jq '.[].tagName')
+          if [ ${#tags[@]} -le 30 ]; then
+            exit 0
+          fi
+
+          for tag in "${tags[@]:30}"; do
+            gh release delete "$tag" -y --cleanup-tag || true
+          done
