@@ -94,7 +94,7 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: data-out
-          path: ${{ env.OUTPUT_DIR }}/**
+          path: ${{ env.OUTPUT_DIR }}
           if-no-files-found: error
 
       - name: Write workflow summary
