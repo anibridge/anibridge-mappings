@@ -82,7 +82,7 @@ class CachedMetadataSource(MetadataSource):
     provider_key: ClassVar[str]
     cache_filename: ClassVar[str]
 
-    def __init__(self, *, concurrency: int = 6) -> None:
+    def __init__(self, *, concurrency: int = 1) -> None:
         """Initialize the cached metadata provider.
 
         Args:

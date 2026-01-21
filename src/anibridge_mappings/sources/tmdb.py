@@ -62,7 +62,7 @@ class TmdbSource(CachedMetadataSource):
         token = self._get_token()
         if not token:
             log.warning("TMDB_API_KEY not set; skipping TMDB metadata fetch")
-            return [(entry_id, None, True) for entry_id, _scope in entry_ids]
+            return [(entry_id, None, False) for entry_id, _scope in entry_ids]
         return await super()._fetch_missing(entry_ids)
 
     async def _fetch_entry(
@@ -74,13 +74,7 @@ class TmdbSource(CachedMetadataSource):
         """Fetch TMDB metadata for a single entry."""
         log.debug("Fetching TMDB metadata for %s (season scope: %s)", entry_id, scope)
         scope_meta, cacheable = await self._get_or_fetch_show_meta(session, entry_id)
-        if scope_meta is None:
-            return entry_id, None, cacheable
-
-        filtered = self._subset_scope_meta(scope_meta, scope)
-        if not filtered:
-            return entry_id, None, True
-        return entry_id, filtered, True
+        return entry_id, scope_meta, cacheable
 
     async def _get_or_fetch_show_meta(
         self,

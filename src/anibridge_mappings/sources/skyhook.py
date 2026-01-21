@@ -19,7 +19,7 @@ class SkyhookSource(CachedMetadataSource):
     provider_key = "tvdb_show"
     cache_filename = "tvdb_meta.json"
 
-    def __init__(self, concurrency: int = 8) -> None:
+    def __init__(self, concurrency: int = 6) -> None:
         """Initialize the SkyhookSource with a specific concurrency level.
 
         Args:
@@ -40,13 +40,7 @@ class SkyhookSource(CachedMetadataSource):
         """Fetch TVDB metadata for a single entry."""
         log.debug("Fetching TVDB metadata for %s (season scope: %s)", entry_id, scope)
         scope_meta, cacheable = await self._get_or_fetch_show_meta(session, entry_id)
-        if scope_meta is None:
-            return entry_id, None, cacheable
-
-        filtered = self._subset_scope_meta(scope_meta, scope)
-        if not filtered:
-            return entry_id, None, True
-        return entry_id, filtered, True
+        return entry_id, scope_meta, cacheable
 
     async def _get_or_fetch_show_meta(
         self,
