@@ -33,21 +33,37 @@ class TmdbSource(CachedMetadataSource):
         self._show_cache: dict[str, dict[str | None, SourceMeta] | None] = {}
 
     @staticmethod
-    def _get_token() -> str:
-        """Read the TMDB bearer token from `TMDB_API_KEY`."""
+    def _get_token() -> str | None:
+        """Read the TMDB bearer token from `TMDB_API_KEY`.
+
+        Returns None when not configured so the pipeline can still run (e.g. PRs).
+        """
         token = os.environ.get("TMDB_API_KEY")
         if not token:
-            raise RuntimeError("TMDB_API_KEY environment variable is required")
+            return None
         return token
 
     def _session_kwargs(self) -> dict[str, Any]:
         """Return aiohttp session settings for TMDB requests."""
+        token = self._get_token()
+        if not token:
+            return {}
         return {
             "headers": {
                 "Accept": "application/json",
-                "Authorization": f"Bearer {self._get_token()}",
+                "Authorization": f"Bearer {token}",
             }
         }
+
+    async def _fetch_missing(
+        self,
+        entry_ids: list[tuple[str, str | None]],
+    ) -> list[tuple[str, dict[str | None, SourceMeta] | None, bool]]:
+        token = self._get_token()
+        if not token:
+            log.warning("TMDB_API_KEY not set; skipping TMDB metadata fetch")
+            return [(entry_id, None, True) for entry_id, _scope in entry_ids]
+        return await super()._fetch_missing(entry_ids)
 
     async def _fetch_entry(
         self,
