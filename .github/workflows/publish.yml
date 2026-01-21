@@ -69,9 +69,9 @@ jobs:
           if [ -n "$prev" ]; then
             rm -rf /tmp/prev-release
             mkdir -p /tmp/prev-release
-            gh release download "$prev" -p "data-out.zip" -D /tmp/prev-release || true
-            if ls /tmp/prev-release/*.zip >/dev/null 2>&1; then
-              unzip -p /tmp/prev-release/*.zip "data/out/mappings.json" > /tmp/mappings.old.json || true
+            gh release download "$prev" -p "mappings.json" -D /tmp/prev-release || true
+            if [ -f /tmp/prev-release/mappings.json ]; then
+              cp /tmp/prev-release/mappings.json /tmp/mappings.old.json
             fi
           fi
           if [ ! -s /tmp/mappings.old.json ]; then
@@ -90,21 +90,11 @@ jobs:
         run: |
           uv run ./main.py --out "$OUTPUT_DIR" --compress --stats --provenance
 
-      - name: Package output
-        run: |
-          set -euo pipefail
-          rm -f /tmp/data-out.zip
-          if [ ! -d "$OUTPUT_DIR" ]; then
-            echo "Missing $OUTPUT_DIR" >&2
-            exit 1
-          fi
-          zip -r /tmp/data-out.zip "$OUTPUT_DIR"
-
       - name: Upload release artifact
         uses: actions/upload-artifact@v6
         with:
           name: data-out
-          path: /tmp/data-out.zip
+          path: ${{ env.OUTPUT_DIR }}/**
           if-no-files-found: error
 
       - name: Write workflow summary
@@ -142,10 +132,10 @@ jobs:
       contents: write
     steps:
       - name: Download artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: data-out
-          path: /tmp
+          path: /tmp/artifact
 
       - name: Create or update daily release
         env:
@@ -154,17 +144,31 @@ jobs:
           set -euo pipefail
           tag="${{ needs.build.outputs.release_tag }}"
           date_str="${{ needs.build.outputs.release_date }}"
-          asset="/tmp/data-out.zip"
-          if [ ! -f "$asset" ]; then
-            echo "Missing release asset: $asset" >&2
+          out_dir="/tmp/artifact/$OUTPUT_DIR"
+          if [ ! -d "$out_dir" ]; then
+            echo "Missing artifact output dir: $out_dir" >&2
+            find /tmp/artifact -maxdepth 4 -type d -print >&2 || true
             exit 1
           fi
 
           # Re-runs for the same day should replace the release.
           gh release view "$tag" >/dev/null 2>&1 && gh release delete "$tag" -y --cleanup-tag || true
-          gh release create "$tag" "$asset" \
+          gh release create "$tag" \
             --title "Mappings $date_str" \
             --notes "Automated daily mappings build."
+
+          shopt -s nullglob
+          mapfile -t files < <(find "$out_dir" -type f -print)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No files found in $out_dir" >&2
+            exit 1
+          fi
+
+          for file in "${files[@]}"; do
+            rel="${file#"$out_dir/"}"
+            asset_name="${rel//\//__}"
+            gh release upload "$tag" "$file#$asset_name" --clobber
+          done
 
       - name: Keep only last 30 releases
         env:
