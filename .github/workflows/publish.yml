@@ -99,6 +99,22 @@ jobs:
           path: ${{ env.OUTPUT_DIR }}
           if-no-files-found: error
 
+      - name: Write mappings diff file
+        run: |
+          set -euo pipefail
+          if [ -f "/tmp/mappings.old.json" ] && [ -f "$OUTPUT_DIR/mappings.json" ]; then
+            diff -u /tmp/mappings.old.json "$OUTPUT_DIR/mappings.json" > /tmp/mappings.diff || true
+          else
+            : > /tmp/mappings.diff
+          fi
+
+      - name: Upload mappings diff artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: mappings-diff
+          path: /tmp/mappings.diff
+          if-no-files-found: error
+
       - name: Write workflow summary
         if: always()
         run: |
@@ -113,15 +129,6 @@ jobs:
               echo "\`\`\`"
             else
               echo "stats.json not found."
-            fi
-            echo ""
-            echo "### mappings.json diff"
-            if [ -f "/tmp/mappings.old.json" ] && [ -f "$OUTPUT_DIR/mappings.json" ]; then
-              echo "\`\`\`diff"
-              diff -u /tmp/mappings.old.json "$OUTPUT_DIR/mappings.json" || true
-              echo "\`\`\`"
-            else
-              echo "mappings.json diff unavailable."
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
