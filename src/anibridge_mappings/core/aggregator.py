@@ -43,10 +43,10 @@ from anibridge_mappings.sources.skyhook import SkyhookSource
 from anibridge_mappings.sources.tmdb import TmdbSource
 from anibridge_mappings.sources.wikidata import WikidataSource
 from anibridge_mappings.utils.mapping import (
-    _provider_scope_sort_key,
     build_source_target_map,
     collapse_source_mappings,
     ordered_payload,
+    provider_scope_sort_key,
 )
 
 log = getLogger(__name__)
@@ -338,7 +338,7 @@ def build_schema_payload(
     source_map = build_source_target_map(episode_graph)
     for source_scope, targets in sorted(
         source_map.items(),
-        key=lambda item: _provider_scope_sort_key(mapping_descriptor(*item[0])),
+        key=lambda item: provider_scope_sort_key(mapping_descriptor(*item[0])),
     ):
         source_provider, source_id, source_scope_value = source_scope
         source_descriptor = mapping_descriptor(
@@ -347,7 +347,7 @@ def build_schema_payload(
         collapsed_targets: dict[str, dict[str, str]] = {}
         for target_scope, source_ranges in sorted(
             targets.items(),
-            key=lambda item: _provider_scope_sort_key(mapping_descriptor(*item[0])),
+            key=lambda item: provider_scope_sort_key(mapping_descriptor(*item[0])),
         ):
             target_provider, target_id, target_scope_value = target_scope
             collapsed = collapse_source_mappings(source_ranges)

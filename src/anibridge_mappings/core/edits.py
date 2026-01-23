@@ -2,7 +2,6 @@
 
 import importlib.metadata
 import logging
-import re
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +10,7 @@ from ruamel.yaml.comments import CommentedMap
 from ruamel.yaml.scalarstring import DoubleQuotedScalarString
 
 from anibridge_mappings.core.graph import EpisodeMappingGraph, ProvenanceContext
+from anibridge_mappings.utils.mapping import provider_scope_sort_key
 
 log = logging.getLogger(__name__)
 
@@ -83,7 +83,7 @@ def _normalize_node(node: CommentedMap, depth: int = 0) -> Any:
     keys = list(node.keys())
     if depth < 2:
         # Sort Source (depth 0) and Target (depth 1) descriptors
-        keys.sort(key=_descriptor_sort_key)
+        keys.sort(key=provider_scope_sort_key)
 
     for k in keys:
         v = node[k]
@@ -100,35 +100,6 @@ def _normalize_node(node: CommentedMap, depth: int = 0) -> Any:
             new_map.ca.items[new_key] = node.ca.items[k]
 
     return new_map
-
-
-def _descriptor_sort_key(key: Any) -> tuple[int, str, int | str, int | str]:
-    """Generates a sort tuple for provider:id:scope strings.
-
-    Sort Order:
-        1. Special keys ($schema, etc) first.
-        2. Provider (string)
-        3. ID (string, but try numeric if possible)
-        4. Scope (string, but try numeric if possible)
-    """
-    k_str = str(key)
-    if k_str.startswith("$"):
-        return (0, "", "", "")
-
-    parts = k_str.split(":")
-    if len(parts) not in (2, 3):
-        return (2, k_str, "", "")
-
-    provider = parts[0]
-    id_str = parts[1]
-    scope_str = parts[2] if len(parts) == 3 else ""
-
-    parsed_id = int(id_str) if id_str.isdigit() else id_str
-    parsed_scope = (
-        int(scope_str[1:]) if re.match(r"^[sS](\d+)$", scope_str) else scope_str
-    )
-
-    return (1, provider, parsed_id, parsed_scope)
 
 
 def apply_edits(
@@ -186,7 +157,10 @@ def _parse_descriptor(descriptor: str) -> Scope:
     """Parses 'provider:id[:scope]' string into a tuple."""
     parts = descriptor.split(":")
     if len(parts) == 2:
-        return parts[0], parts[1], None
+        provider, entry_id = parts
+        if provider == "anidb":  # Special handling to normalize Anidb scope
+            return provider, entry_id, "R"
+        return provider, entry_id, None
     if len(parts) == 3:
         return parts[0], parts[1], parts[2]
     raise EditError(

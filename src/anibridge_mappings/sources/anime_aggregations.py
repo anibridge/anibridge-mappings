@@ -21,7 +21,7 @@ class AnimeAggregationsSource(IdMappingSource, MetadataSource):
     REPO_URL = "https://github.com/notseteve/AnimeAggregations.git"
     ANIME_DIR = "anime"
     LOCAL_REPO_ROOT = Path("data/meta/AnimeAggregations")
-    DEFAULT_SCOPE = "s1"
+    DEFAULT_SCOPE = "R"
 
     def __init__(self) -> None:
         """Initialize the local cache for fetched entries."""
@@ -78,7 +78,7 @@ class AnimeAggregationsSource(IdMappingSource, MetadataSource):
                 meta = store.get(
                     "anidb",
                     anidb_id,
-                    scope=None if meta_type == SourceType.MOVIE else self.DEFAULT_SCOPE,
+                    scope=self.DEFAULT_SCOPE,
                 )
                 meta.episodes = len(main_episodes)
                 if meta_type is not None:
@@ -89,7 +89,7 @@ class AnimeAggregationsSource(IdMappingSource, MetadataSource):
                     meta.start_year = start_year
 
             if special_episodes:
-                specials_meta = store.get("anidb", anidb_id, scope="s0")
+                specials_meta = store.get("anidb", anidb_id, scope="S")
                 specials_meta.episodes = len(special_episodes)
                 if specials_meta.type is None:
                     specials_meta.type = SourceType.TV
@@ -114,7 +114,6 @@ class AnimeAggregationsSource(IdMappingSource, MetadataSource):
             if not isinstance(resources, dict):
                 continue
 
-            # TODO: could be better - there's a chance of losing s0 mappings here
             nodes: list[tuple[str, str, str | None]] = [
                 ("anidb", anidb_id, AnimeAggregationsSource.DEFAULT_SCOPE)
             ]

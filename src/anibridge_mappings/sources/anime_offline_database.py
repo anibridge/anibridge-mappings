@@ -135,9 +135,8 @@ class AnimeOfflineDatabaseSource(MetadataSource, IdMappingSource):
         """Parse a source string into provider and ID."""
         for provider, pattern in AnimeOfflineDatabaseSource._SOURCE_PATTERNS:
             match = pattern.match(source)
-            # TODO: could be better - there's a chance of losing s0 anidb mappings here
             if match:
-                return provider, match.group(1), None if provider != "anidb" else "s1"
+                return provider, match.group(1), None if provider != "anidb" else "R"
         return None
 
     @staticmethod

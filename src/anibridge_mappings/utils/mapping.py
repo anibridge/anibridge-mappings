@@ -499,7 +499,7 @@ def _merge_adjacent_numeric_keys(mapping: dict[str, str]) -> dict[str, str]:
     return out
 
 
-def _provider_scope_sort_key(k: str):
+def provider_scope_sort_key(k: str):
     """Return a sort key for provider-scoped mapping descriptors."""
     if k.startswith("$"):
         return (0, k, "")
@@ -518,8 +518,13 @@ def _provider_scope_sort_key(k: str):
     if scope is None:
         scope_key = (0, "")
     else:
-        scope_match = re.match(r"^s([0-9]+)$", scope)
-        scope_key = (1, int(scope_match.group(1))) if scope_match else (2, scope)
+        scope_upper = scope.upper()
+        anidb_scope_order = {"R": 0, "S": 1, "O": 2, "C": 3, "T": 4, "P": 5}
+        if scope_upper in anidb_scope_order:
+            scope_key = (1, anidb_scope_order[scope_upper])
+        else:
+            scope_match = re.match(r"^s([0-9]+)$", scope)
+            scope_key = (2, int(scope_match.group(1))) if scope_match else (3, scope)
     return (1, provider, id_key, scope_key)
 
 
@@ -537,11 +542,11 @@ def ordered_payload(d: dict[str, Any]) -> dict[str, Any]:
         items.append(("$meta", d["$meta"]))
 
     top_keys = [k for k in d if k != "$meta"]
-    for k in sorted(top_keys, key=_provider_scope_sort_key):
+    for k in sorted(top_keys, key=provider_scope_sort_key):
         v = d[k]
         if isinstance(v, dict):
             inner: dict[str, Any] = {}
-            for tk in sorted(v.keys(), key=_provider_scope_sort_key):
+            for tk in sorted(v.keys(), key=provider_scope_sort_key):
                 ranges = v[tk]
                 if isinstance(ranges, dict):
 

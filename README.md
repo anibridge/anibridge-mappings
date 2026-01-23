@@ -54,15 +54,15 @@ provider:id[:scope]
 
 - `provider`: one of `anidb`, `anilist`, `imdb_movie`, `imdb_show`, `mal`, `tmdb_show`, `tmdb_movie`, `tvdb_show`.
 - `id`: the provider-specific identifier (e.g. AniDB ID `1234` or TMDB ID `tt1234567`).
-- `scope`: is optional and used to denote some type of subsetting. For the purposes of this dataset, they will be used to denote a season (e.g. `s0`, `s1`, etc). Certain providers may not use scopes such as AniList and MAL.
+- `scope`: is optional and used to denote some type of subsetting. For this dataset, most providers use season scopes like `s0`, `s1`, etc. AniDB uses episode-type scopes: `R` (regular), `S` (specials), `O` (other), plus any additional AniDB episode types when needed. AniList and MAL typically omit scopes.
 
 Each target descriptor maps source episode ranges to target ranges:
 
 ```jsonc
 {
-  "anidb:1:s0": {
-    "tvdb_show:2:s0": {}, // from anidb id 1, season 0 to tvdb id 2, season 0
-    "tmdb_show:3:s1": {}, // from anidb id 1, season 0 to tmdb id 3, season 1
+  "anidb:1:S": {
+    "tvdb_show:2:s0": {}, // from anidb id 1, specials to tvdb id 2, season 0
+    "tmdb_show:3:s1": {}, // from anidb id 1, specials to tmdb id 3, season 1
   },
   "mal:4": {
     "tmdb_show:5:s0": {}, // from mal id 4 (no scope) to tmdb id 5, season 0
@@ -83,7 +83,7 @@ x[-y][|ratio][,x2[-y2][|ratio2]...]
 
 ```jsonc
 {
-  "anidb:5:s1": {
+  "anidb:5:R": {
     "tvdb_show:6:s0": {
       "1-12": "1-12", // source episodes 1-12 map to target episodes 1-12
       "14-": "13-", // source episodes 14 and onward map to target episodes 13 and onward

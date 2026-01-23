@@ -18,7 +18,8 @@ class AnimeListsSource(IdMappingSource, EpisodeMappingSource):
     """Source class for Anime-Lists/anime-lists."""
 
     SOURCE_URL = "https://github.com/Anime-Lists/anime-lists/raw/refs/heads/master/anime-list-master.xml"
-    DEFAULT_SCOPE = "s1"
+    DEFAULT_ANIDB_SCOPE = "R"
+    DEFAULT_SEASON_SCOPE = "s1"
 
     def __init__(self) -> None:
         """Initialize the source class."""
@@ -55,11 +56,11 @@ class AnimeListsSource(IdMappingSource, EpisodeMappingSource):
                 continue
 
             source_scopes = {
-                self._scope_from_attr(mapping_el.get("anidbseason"))
+                self._anidb_scope_from_attr(mapping_el.get("anidbseason"))
                 for mapping_el in anime_el.findall("mapping-list/mapping")
             }
-            # TODO: is it actually ever possible for a mapping to NOT include s1?
-            source_scopes.add(AnimeListsSource.DEFAULT_SCOPE)
+            # TODO: is it actually ever possible for a mapping to NOT include R?
+            source_scopes.add(AnimeListsSource.DEFAULT_ANIDB_SCOPE)
 
             nodes: list[tuple[str, str, str | None]] = [
                 ("anidb", anidb_id, scope) for scope in source_scopes
@@ -70,14 +71,14 @@ class AnimeListsSource(IdMappingSource, EpisodeMappingSource):
 
             tmdb_scope = (
                 self._scope_from_attr(anime_el.get("tmdbseason"))
-                or AnimeListsSource.DEFAULT_SCOPE
+                or AnimeListsSource.DEFAULT_SEASON_SCOPE
             )
             tmdb_raw = (anime_el.get("tmdbtv") or "").strip()
             tmdb_show = tmdb_raw if tmdb_raw.isdigit() else None
 
             tvdb_scope = (
                 self._scope_from_attr(anime_el.get("defaulttvdbseason"))
-                or AnimeListsSource.DEFAULT_SCOPE
+                or AnimeListsSource.DEFAULT_SEASON_SCOPE
             )
             tvdb_raw = (anime_el.get("tvdbid") or "").strip()
             tvdb = tvdb_raw if tvdb_raw.isdigit() else None
@@ -128,7 +129,9 @@ class AnimeListsSource(IdMappingSource, EpisodeMappingSource):
             mapping_list = anime_el.find("mapping-list")
             if mapping_list is not None:
                 for mapping_el in mapping_list.findall("mapping"):
-                    source_scope = self._scope_from_attr(mapping_el.get("anidbseason"))
+                    source_scope = self._anidb_scope_from_attr(
+                        mapping_el.get("anidbseason")
+                    )
                     if source_scope is None:
                         log.warning(
                             "Mapping missing AniDB season for AniDB ID %s; skipping.",
@@ -221,6 +224,45 @@ class AnimeListsSource(IdMappingSource, EpisodeMappingSource):
             return None
         value = "1" if scope.lower() == "a" else scope
         return f"s{value}"
+
+    @classmethod
+    def _anidb_scope_from_attr(cls, raw_scope: str | None) -> str | None:
+        """Normalize AniDB scope values into episode-type scopes."""
+        if raw_scope is None:
+            return None
+        scope = raw_scope.strip()
+        if not scope:
+            return None
+
+        lowered = scope.lower()
+        if lowered in {"a", "1", "r", "regular"}:
+            return cls.DEFAULT_ANIDB_SCOPE
+        if lowered in {"0", "s", "special", "specials"}:
+            return "S"
+
+        if len(scope) == 1 and scope.isalpha():
+            return scope.upper()
+
+        if lowered.startswith("s") and lowered[1:].isdigit():
+            value = int(lowered[1:])
+            if value == 0:
+                return "S"
+            if value == 1:
+                return cls.DEFAULT_ANIDB_SCOPE
+            log.debug(
+                "Unexpected AniDB scope %s; treating as regular.",
+                scope,
+            )
+            return cls.DEFAULT_ANIDB_SCOPE
+
+        if lowered.isdigit():
+            value = int(lowered)
+            if value == 0:
+                return "S"
+            return cls.DEFAULT_ANIDB_SCOPE
+
+        log.debug("Unrecognized AniDB scope %s; treating as regular.", scope)
+        return cls.DEFAULT_ANIDB_SCOPE
 
     @staticmethod
     def _episode_key(value: str | None) -> str | None:
@@ -325,7 +367,7 @@ class AnimeListsSource(IdMappingSource, EpisodeMappingSource):
         tvdb_scope = (
             self._scope_from_attr(mapping_el.get("tvdbseason")) or default_tvdb_scope
         )
-        normalized_tvdb_scope = tvdb_scope or AnimeListsSource.DEFAULT_SCOPE
+        normalized_tvdb_scope = tvdb_scope or AnimeListsSource.DEFAULT_SEASON_SCOPE
         tvdb_id = (anime_el.get("tvdbid") or "").strip()
 
         tvdb_offset = 0
@@ -352,7 +394,7 @@ class AnimeListsSource(IdMappingSource, EpisodeMappingSource):
         tmdb_scope = self._scope_from_attr(tmdb_season_attr) or self._scope_from_attr(
             anime_el.get("tmdbseason")
         )
-        normalized_tmdb_scope = tmdb_scope or AnimeListsSource.DEFAULT_SCOPE
+        normalized_tmdb_scope = tmdb_scope or AnimeListsSource.DEFAULT_SEASON_SCOPE
         tmdb_id = (anime_el.get("tmdbtv") or "").strip()
 
         tmdb_offset = 0
@@ -387,7 +429,7 @@ class AnimeListsSource(IdMappingSource, EpisodeMappingSource):
         if not targets:
             return
 
-        source_node = ("anidb", anidb_id, None, "1")
+        source_node = ("anidb", anidb_id, AnimeListsSource.DEFAULT_ANIDB_SCOPE, "1")
         for provider, entry_id in targets:
             target_node = (provider, entry_id, None, "1")
             graph.add_edge(source_node, target_node)
@@ -422,7 +464,9 @@ class AnimeListsSource(IdMappingSource, EpisodeMappingSource):
         store: MetaStore,
     ) -> None:
         """Fill in default season mappings when no explicit mapping exists."""
-        source_scope = self._scope_from_attr("1") or AnimeListsSource.DEFAULT_SCOPE
+        source_scope = (
+            self._anidb_scope_from_attr("1") or AnimeListsSource.DEFAULT_ANIDB_SCOPE
+        )
         default_specs = self._extract_target_specs(
             anime_el, etree.Element("mapping"), apply_default_offsets=True
         )
