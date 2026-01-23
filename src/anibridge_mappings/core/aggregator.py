@@ -19,7 +19,10 @@ from anibridge_mappings.core.meta import MetaStore
 from anibridge_mappings.core.validators import (
     MappingOverflowValidator,
     MappingOverlapValidator,
+    MappingRangeSyntaxValidator,
+    MappingUnitMismatchValidator,
     MappingValidator,
+    ValidationContext,
     ValidationIssue,
     parse_descriptor,
 )
@@ -223,9 +226,10 @@ class MappingAggregator:
         if not self._validators:
             return []
         issues: list[ValidationIssue] = []
+        context = ValidationContext.from_graphs(episode_graph, meta_store, id_graph)
         for validator in self._validators:
             try:
-                result = validator.validate(episode_graph, meta_store, id_graph)
+                result = validator.validate(context)
             except Exception as exc:  # pragma: no cover - defensive logging
                 log.exception("Validator %s failed: %s", validator.name, exc)
                 continue
@@ -409,5 +413,10 @@ def default_aggregator() -> MappingAggregator:
             shinkro_tmdb,
             shinkro_tvdb,
         ),
-        validators=(MappingOverlapValidator(), MappingOverflowValidator()),
+        validators=(
+            MappingRangeSyntaxValidator(),
+            MappingOverlapValidator(),
+            MappingOverflowValidator(),
+            MappingUnitMismatchValidator(),
+        ),
     )

@@ -31,7 +31,7 @@ def normalize_episode_key(value: str | None) -> str | None:
     return trimmed or None
 
 
-def _split_ratio(range_key: str) -> tuple[str, int | None] | None:
+def split_ratio(range_key: str) -> tuple[str, int | None] | None:
     """Split a range key into base range and optional ratio."""
     if "|" not in range_key:
         return range_key, None
@@ -65,7 +65,7 @@ def parse_range_bounds(range_key: str) -> tuple[int, int | None] | None:
     if "," in normalized:
         return None
 
-    split = _split_ratio(normalized)
+    split = split_ratio(normalized)
     if split is None:
         return None
     base, _ratio = split
