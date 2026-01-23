@@ -439,12 +439,14 @@ class EpisodeMappingGraph(_BaseGraph[EpisodeNode]):
             visited.update(component)
             if len(component) < 2:
                 continue
-            nodes = list(component)
+            nodes = sorted(component, key=self._node_key)
             for idx, source in enumerate(nodes):
                 for target in nodes[idx + 1 :]:
                     if target in self._adj.get(source, set()):
                         continue
-                    if any(c in (",", "|") for c in source[3]):
+                    if any(c in (",", "|") for c in source[3]) or any(
+                        c in (",", "|") for c in target[3]
+                    ):
                         # Complex range, skip creating a transitive edge
                         continue
                     self.add_edge(
