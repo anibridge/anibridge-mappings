@@ -21,7 +21,6 @@ from anibridge_mappings.core.validators import (
     MappingValidator,
     ValidationContext,
     ValidationIssue,
-    parse_descriptor,
 )
 from anibridge_mappings.sources.anilist import AnilistSource
 from anibridge_mappings.sources.anime_aggregations import AnimeAggregationsSource
@@ -151,11 +150,23 @@ class MappingAggregator:
         if transitive_edges:
             log.info("Added %d transitive episode mapping edges", transitive_edges)
 
+        post_transitive_issues = await self._run_validators(
+            episode_graph, meta_store, id_graph
+        )
+        if post_transitive_issues:
+            self._prune_invalid_edges(episode_graph, post_transitive_issues)
+            log.warning(
+                "Post-transitive validation produced %d issue(s)",
+                len(post_transitive_issues),
+            )
+        else:
+            log.info("Post-transitive validation produced no issues")
+
         return AggregationArtifacts(
             id_graph=id_graph,
             meta_store=meta_store,
             episode_graph=episode_graph,
-            validation_issues=validation_issues,
+            validation_issues=validation_issues + post_transitive_issues,
         )
 
     async def _prepare_sources(self) -> None:
@@ -411,10 +422,5 @@ def default_aggregator() -> MappingAggregator:
             shinkro_tmdb,
             shinkro_tvdb,
         ),
-        validators=(
-            MappingRangeSyntaxValidator(),
-            MappingOverlapValidator(),
-            MappingOverflowValidator(),
-            MappingUnitMismatchValidator(),
-        ),
+        validators=(MappingRangeValidator(),),
     )
