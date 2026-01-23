@@ -14,6 +14,25 @@ SourceTargetMap = dict[
 ]
 
 
+def parse_descriptor(descriptor: str) -> tuple[str, str, str | None]:
+    """Parse `provider:id[:scope]` strings back into tuple form.
+
+    Args:
+        descriptor (str): Provider descriptor string.
+
+    Returns:
+        tuple[str, str, str | None]: Provider, entry ID, and optional scope.
+    """
+    parts = descriptor.split(":", 2)
+    if len(parts) == 2:
+        provider, entry_id = parts
+        return provider, entry_id, None
+    if len(parts) == 3:
+        provider, entry_id, scope = parts
+        return provider, entry_id, scope
+    raise ValueError(f"Invalid descriptor: {descriptor}")
+
+
 def normalize_episode_key(value: str | None) -> str | None:
     """Normalize an episode key to digits or `start-end` ranges.
 

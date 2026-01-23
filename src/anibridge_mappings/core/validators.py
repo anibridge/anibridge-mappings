@@ -110,12 +110,13 @@ class RangeSpec:
 
 
 @dataclass(slots=True)
-class TargetSegment:
-    """Parsed target range segment with its originating source range."""
+class SegmentBounds:
+    """Parsed segment bounds with metadata."""
 
-    source_range: str
-    target_range: str
-    spec: RangeSpec
+    start: int
+    end: int | None
+    ratio: int | None
+    raw: str
 
 
 def _descriptor(provider: str, entry_id: str, scope: str | None) -> str:
@@ -123,25 +124,6 @@ def _descriptor(provider: str, entry_id: str, scope: str | None) -> str:
     if scope is None:
         return f"{provider}:{entry_id}"
     return f"{provider}:{entry_id}:{scope}"
-
-
-def parse_descriptor(descriptor: str) -> tuple[str, str, str | None]:
-    """Parse `provider:id[:scope]` strings back into tuple form.
-
-    Args:
-        descriptor (str): Provider descriptor string.
-
-    Returns:
-        tuple[str, str, str | None]: Provider, entry ID, and optional scope.
-    """
-    parts = descriptor.split(":", 2)
-    if len(parts) == 2:
-        provider, entry_id = parts
-        return provider, entry_id, None
-    if len(parts) == 3:
-        provider, entry_id, scope = parts
-        return provider, entry_id, scope
-    raise ValueError(f"Invalid descriptor: {descriptor}")
 
 
 def _iter_target_ranges(
@@ -184,19 +166,6 @@ def _parse_range_spec(range_key: str) -> RangeSpec:
     return RangeSpec(raw=range_key, base=base, ratio=ratio, bounds=bounds)
 
 
-def _iter_target_segments_from_ranges(
-    source_ranges: dict[str, set[str]],
-) -> Iterable[TargetSegment]:
-    """Yield parsed target segments for the provided source ranges."""
-    for source_range, target_range in _iter_target_ranges(source_ranges):
-        for segment in _iter_target_segment_strings(target_range):
-            yield TargetSegment(
-                source_range=source_range,
-                target_range=segment,
-                spec=_parse_range_spec(segment),
-            )
-
-
 def _ranges_overlap(
     start_a: int,
     end_a: int | None,
@@ -210,52 +179,133 @@ def _ranges_overlap(
     )
 
 
-class MappingRangeSyntaxValidator(MappingValidator):
-    """Detect invalid range syntax in source or target ranges."""
+def _iter_segment_bounds(target_range: str) -> Iterable[SegmentBounds]:
+    """Yield parsed bounds for each target range segment."""
+    for segment in _iter_target_segment_strings(target_range):
+        spec = _parse_range_spec(segment)
+        if not spec.is_valid or spec.bounds is None:
+            continue
+        start, end = spec.bounds
+        yield SegmentBounds(
+            start=start,
+            end=end,
+            ratio=spec.ratio,
+            raw=segment,
+        )
 
-    name = "mapping_range_syntax"
+
+def _segment_source_units(segment: SegmentBounds) -> int | None:
+    """Return source units represented by a target segment, if determinable."""
+    if segment.end is None:
+        return None
+    length = segment.end - segment.start + 1
+    if segment.ratio is None:
+        return length
+    if segment.ratio > 0:
+        if length % segment.ratio != 0:
+            return None
+        return length // segment.ratio
+    return length * abs(segment.ratio)
+
+
+class MappingRangeValidator(MappingValidator):
+    """Validate mapping range syntax and consistency."""
+
+    name = "mapping_ranges"
 
     def validate(self, context: ValidationContext) -> list[ValidationIssue]:
-        """Return syntax errors found in range specifications.
+        """Return issues found across source/target range specifications.
 
         Args:
             context (ValidationContext): Shared validation context.
 
         Returns:
-            list[ValidationIssue]: Range syntax issues found.
+            list[ValidationIssue]: Range validation issues found.
         """
         issues: list[ValidationIssue] = []
 
         for (src_provider, src_id, src_scope), targets in context.source_map.items():
-            src_descriptor = _descriptor(src_provider, src_id, src_scope)
+            source_descriptor = _descriptor(src_provider, src_id, src_scope)
             for (t_provider, t_id, t_scope), source_ranges in targets.items():
-                tgt_descriptor = _descriptor(t_provider, t_id, t_scope)
+                target_descriptor = _descriptor(t_provider, t_id, t_scope)
+                meta = context.meta_store.peek(t_provider, t_id, t_scope)
+                limit = meta.episodes if meta else None
+                target_segments: list[tuple[int, int | None, str, str]] = []
+
                 for source_range, target_range in _iter_target_ranges(source_ranges):
+                    source_spec = _parse_range_spec(source_range)
                     if "," in source_range:
                         issues.append(
                             self.issue(
                                 "Source ranges must be contiguous (no commas)",
-                                source=src_descriptor,
-                                target=tgt_descriptor,
+                                source=source_descriptor,
+                                target=target_descriptor,
                                 source_range=source_range,
                                 target_range=target_range,
                                 details={"source_range": source_range},
                             )
                         )
-                        continue
-
-                    source_spec = _parse_range_spec(source_range)
                     if not source_spec.is_valid:
                         issues.append(
                             self.issue(
                                 "Invalid source range syntax",
-                                source=src_descriptor,
-                                target=tgt_descriptor,
+                                source=source_descriptor,
+                                target=target_descriptor,
                                 source_range=source_range,
                                 target_range=target_range,
                                 details={"source_range": source_range},
                             )
                         )
+
+                    src_info = _range_length_and_ratio(source_range)
+                    src_len: int | None = None
+                    src_ratio: int | None = None
+                    if src_info is not None:
+                        src_len, src_ratio = src_info
+
+                    segments = list(_iter_segment_bounds(target_range))
+                    for segment in segments:
+                        target_segments.append(
+                            (
+                                segment.start,
+                                segment.end,
+                                source_range,
+                                target_range,
+                            )
+                        )
+
+                        if limit and limit > 0:
+                            if segment.end is None:
+                                if segment.start > limit:
+                                    issues.append(
+                                        self.issue(
+                                            "Target mapping exceeds available episodes",
+                                            source=source_descriptor,
+                                            target=target_descriptor,
+                                            source_range=source_range,
+                                            target_range=segment.raw,
+                                            details={
+                                                "source_range": source_range,
+                                                "target_range": segment.raw,
+                                                "episode_limit": limit,
+                                            },
+                                        )
+                                    )
+                            elif segment.end > limit:
+                                issues.append(
+                                    self.issue(
+                                        "Target mapping exceeds available episodes",
+                                        source=source_descriptor,
+                                        target=target_descriptor,
+                                        source_range=source_range,
+                                        target_range=segment.raw,
+                                        details={
+                                            "source_range": source_range,
+                                            "target_range": segment.raw,
+                                            "episode_limit": limit,
+                                        },
+                                    )
+                                )
 
                     for segment in _iter_target_segment_strings(target_range):
                         target_spec = _parse_range_spec(segment)
@@ -264,247 +314,121 @@ class MappingRangeSyntaxValidator(MappingValidator):
                         issues.append(
                             self.issue(
                                 "Invalid target range syntax",
-                                source=src_descriptor,
-                                target=tgt_descriptor,
+                                source=source_descriptor,
+                                target=target_descriptor,
                                 source_range=source_range,
                                 target_range=segment,
                                 details={"target_range": segment},
                             )
                         )
 
-        return issues
-
-
-class MappingOverlapValidator(MappingValidator):
-    """Detect overlapping target ranges for a given target scope."""
-
-    name = "mapping_overlap"
-
-    def validate(self, context: ValidationContext) -> list[ValidationIssue]:
-        """Return overlaps where multiple source ranges hit overlapping targets.
-
-        Args:
-            context (ValidationContext): Shared validation context.
-
-        Returns:
-            list[ValidationIssue]: Overlap issues found.
-        """
-        issues: list[ValidationIssue] = []
-
-        for (src_provider, src_id, src_scope), targets in context.source_map.items():
-            source_descriptor = _descriptor(src_provider, src_id, src_scope)
-            for (t_provider, t_id, t_scope), source_ranges in targets.items():
-                target_descriptor = _descriptor(t_provider, t_id, t_scope)
-                segments: list[tuple[int, int | None, str, str]] = []
-                for segment in _iter_target_segments_from_ranges(source_ranges):
-                    if not segment.spec.is_valid or segment.spec.bounds is None:
-                        continue
-                    start, end = segment.spec.bounds
-                    segments.append(
-                        (
-                            start,
-                            end,
-                            segment.source_range,
-                            segment.spec.base or segment.target_range,
-                        )
-                    )
-
-                segments.sort(
-                    key=lambda item: (
-                        item[0],
-                        float("inf") if item[1] is None else item[1],
-                    )
-                )
-
-                prev: tuple[int, int | None, str, str] | None = None
-                for start, end, src_range, tgt_base in segments:
-                    if prev is not None:
-                        prev_start, prev_end, prev_src, prev_base = prev
-                        if _ranges_overlap(start, end, prev_start, prev_end):
-                            issues.append(
-                                self.issue(
-                                    "Overlapping target episode ranges for the same "
-                                    "target scope",
-                                    source=source_descriptor,
-                                    target=target_descriptor,
-                                    source_range=src_range,
-                                    target_range=tgt_base,
-                                    details={
-                                        "source_range": src_range,
-                                        "target_range": tgt_base,
-                                        "overlaps_with_source_range": prev_src,
-                                        "overlaps_with_target_range": prev_base,
-                                    },
-                                )
+                    if len(segments) > 1:
+                        segments.sort(
+                            key=lambda item: (
+                                item.start,
+                                float("inf") if item.end is None else item.end,
                             )
-                    prev_end_value = (
-                        float("inf")
-                        if prev is None
-                        else (float("inf") if prev[1] is None else prev[1])
-                    )
-                    current_end_value = float("inf") if end is None else end
-                    if prev is None or current_end_value >= prev_end_value:
-                        prev = (start, end, src_range, tgt_base)
-
-        return issues
-
-
-class MappingOverflowValidator(MappingValidator):
-    """Detect target mappings that exceed known episode counts."""
-
-    name = "mapping_overflow"
-
-    def validate(self, context: ValidationContext) -> list[ValidationIssue]:
-        """Return mappings whose target ranges exceed known episode counts.
-
-        Args:
-            context (ValidationContext): Shared validation context.
-
-        Returns:
-            list[ValidationIssue]: Overflow issues found.
-        """
-        issues: list[ValidationIssue] = []
-
-        for (_src_provider, _src_id, _src_scope), targets in context.source_map.items():
-            for (t_provider, t_id, t_scope), source_ranges in targets.items():
-                meta = context.meta_store.peek(t_provider, t_id, t_scope)
-                limit = meta.episodes if meta else None
-                if not limit or limit <= 0:
-                    continue
-
-                for src_range, target_range in _iter_target_ranges(source_ranges):
-                    for segment in _iter_target_segment_strings(target_range):
-                        spec = _parse_range_spec(segment)
-                        if not spec.is_valid or spec.bounds is None:
-                            continue
-                        start, end_opt = spec.bounds
-                        base = spec.base or segment
-                        # Open upper bound: flag if the start already exceeds the limit.
-                        if end_opt is None:
-                            if start > limit:
+                        )
+                        prev = segments[0]
+                        for current in segments[1:]:
+                            if _ranges_overlap(
+                                prev.start,
+                                prev.end,
+                                current.start,
+                                current.end,
+                            ):
                                 issues.append(
                                     self.issue(
-                                        "Target mapping exceeds available episodes",
-                                        source=_descriptor(
-                                            _src_provider, _src_id, _src_scope
-                                        ),
-                                        target=_descriptor(t_provider, t_id, t_scope),
-                                        source_range=src_range,
-                                        target_range=base,
+                                        "Overlapping target segments within a mapping",
+                                        source=source_descriptor,
+                                        target=target_descriptor,
+                                        source_range=source_range,
+                                        target_range=target_range,
                                         details={
-                                            "source_range": src_range,
-                                            "target_range": base,
-                                            "episode_limit": limit,
+                                            "overlaps_with": prev.raw,
+                                            "segment": current.raw,
                                         },
                                     )
                                 )
-                            continue
-
-                        end = end_opt
-                        if end > limit:
-                            issues.append(
-                                self.issue(
-                                    "Target mapping exceeds available episodes",
-                                    source=_descriptor(
-                                        _src_provider, _src_id, _src_scope
-                                    ),
-                                    target=_descriptor(t_provider, t_id, t_scope),
-                                    source_range=src_range,
-                                    target_range=base,
-                                    details={
-                                        "source_range": src_range,
-                                        "target_range": base,
-                                        "episode_limit": limit,
-                                    },
-                                )
+                            prev_end_value = (
+                                float("inf") if prev.end is None else prev.end
                             )
-
-        return issues
-
-
-class MappingUnitMismatchValidator(MappingValidator):
-    """Detect mappings where source/target unit counts are incompatible."""
-
-    name = "mapping_unit_mismatch"
-
-    def validate(self, context: ValidationContext) -> list[ValidationIssue]:
-        """Return mappings whose source/target unit counts do not align.
-
-        Args:
-            context (ValidationContext): Shared validation context.
-
-        Returns:
-            list[ValidationIssue]: Unit mismatch issues found.
-        """
-        issues: list[ValidationIssue] = []
-
-        for (src_provider, src_id, src_scope), targets in context.source_map.items():
-            for (t_provider, t_id, t_scope), source_ranges in targets.items():
-                for src_range, target_range in _iter_target_ranges(source_ranges):
-                    src_info = _range_length_and_ratio(src_range)
-                    tgt_info = _range_length_and_ratio(target_range)
-                    if src_info is None or tgt_info is None:
-                        continue
-
-                    src_len, src_ratio = src_info
-                    tgt_len, tgt_ratio = tgt_info
-
-                    # Skip ranges that already carry a source-side ratio.
-                    if src_ratio is not None:
-                        continue
-
-                    if tgt_ratio is None:
-                        expected = src_len
-                        if tgt_len != expected:
-                            issues.append(
-                                self.issue(
-                                    "Source and target range units do not match",
-                                    source=_descriptor(src_provider, src_id, src_scope),
-                                    target=_descriptor(t_provider, t_id, t_scope),
-                                    source_range=src_range,
-                                    target_range=target_range,
-                                    details={
-                                        "source_units": src_len,
-                                        "target_units": tgt_len,
-                                    },
-                                )
+                            current_end_value = (
+                                float("inf") if current.end is None else current.end
                             )
+                            if current_end_value > prev_end_value:
+                                prev = current
+
+                    if src_len is None or src_ratio is not None:
+                        continue
+                    if not segments:
                         continue
 
-                    if tgt_ratio > 0:
-                        expected = src_len * tgt_ratio
-                        if tgt_len != expected:
-                            issues.append(
-                                self.issue(
-                                    "Target range units do not match ratio",
-                                    source=_descriptor(src_provider, src_id, src_scope),
-                                    target=_descriptor(t_provider, t_id, t_scope),
-                                    source_range=src_range,
-                                    target_range=target_range,
-                                    details={
-                                        "source_units": src_len,
-                                        "target_units": tgt_len,
-                                        "ratio": tgt_ratio,
-                                    },
-                                )
-                            )
+                    segment_units: list[int] = []
+                    units_unknown = False
+                    for segment in segments:
+                        units = _segment_source_units(segment)
+                        if units is None:
+                            units_unknown = True
+                            break
+                        segment_units.append(units)
+
+                    if units_unknown or not segment_units:
                         continue
 
-                    expected = tgt_len * abs(tgt_ratio)
-                    if src_len != expected:
+                    total_units = sum(segment_units)
+                    if total_units != src_len:
                         issues.append(
                             self.issue(
-                                "Source range units do not match ratio",
-                                source=_descriptor(src_provider, src_id, src_scope),
-                                target=_descriptor(t_provider, t_id, t_scope),
-                                source_range=src_range,
+                                "Target segments expand beyond source range units",
+                                source=source_descriptor,
+                                target=target_descriptor,
+                                source_range=source_range,
                                 target_range=target_range,
                                 details={
                                     "source_units": src_len,
-                                    "target_units": tgt_len,
-                                    "ratio": tgt_ratio,
+                                    "target_units": total_units,
                                 },
                             )
                         )
+
+                if len(target_segments) > 1:
+                    target_segments.sort(
+                        key=lambda item: (
+                            item[0],
+                            float("inf") if item[1] is None else item[1],
+                        )
+                    )
+                    prev: tuple[int, int | None, str, str] | None = None
+                    for start, end, src_range, tgt_range in target_segments:
+                        if prev is not None:
+                            prev_start, prev_end, prev_src, prev_base = prev
+                            if src_range != prev_src and _ranges_overlap(
+                                start, end, prev_start, prev_end
+                            ):
+                                issues.append(
+                                    self.issue(
+                                        "Overlapping target episode ranges for the "
+                                        "same target scope",
+                                        source=source_descriptor,
+                                        target=target_descriptor,
+                                        source_range=src_range,
+                                        target_range=tgt_range,
+                                        details={
+                                            "source_range": src_range,
+                                            "target_range": tgt_range,
+                                            "overlaps_with_source_range": prev_src,
+                                            "overlaps_with_target_range": prev_base,
+                                        },
+                                    )
+                                )
+                        prev_end_value = (
+                            float("inf")
+                            if prev is None
+                            else (float("inf") if prev[1] is None else prev[1])
+                        )
+                        current_end_value = float("inf") if end is None else end
+                        if prev is None or current_end_value >= prev_end_value:
+                            prev = (start, end, src_range, tgt_range)
 
         return issues

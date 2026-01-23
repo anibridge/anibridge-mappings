@@ -4,7 +4,7 @@ from typing import Any
 
 from anibridge_mappings.core.aggregator import AggregationArtifacts
 from anibridge_mappings.core.graph import _BaseGraph
-from anibridge_mappings.core.validators import parse_descriptor
+from anibridge_mappings.utils.mapping import parse_descriptor
 
 
 def _count_edges(graph: _BaseGraph) -> int:

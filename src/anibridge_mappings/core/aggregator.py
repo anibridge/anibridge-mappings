@@ -17,10 +17,7 @@ from anibridge_mappings.core.graph import (
 from anibridge_mappings.core.inference import infer_episode_mappings
 from anibridge_mappings.core.meta import MetaStore
 from anibridge_mappings.core.validators import (
-    MappingOverflowValidator,
-    MappingOverlapValidator,
-    MappingRangeSyntaxValidator,
-    MappingUnitMismatchValidator,
+    MappingRangeValidator,
     MappingValidator,
     ValidationContext,
     ValidationIssue,
@@ -49,6 +46,7 @@ from anibridge_mappings.utils.mapping import (
     build_source_target_map,
     collapse_source_mappings,
     ordered_payload,
+    parse_descriptor,
     provider_scope_sort_key,
 )
 
