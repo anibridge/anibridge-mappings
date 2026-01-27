@@ -20,6 +20,6 @@
       ]
     }
   },
-  "postCreateCommand": "uv sync --all-packages ; (cd api && npm i)",
+  "postCreateCommand": "uv sync --all-packages ; (cd app && pnpm i)",
   "containerEnv": { "UV_LINK_MODE": "copy" }
 }
