@@ -71,12 +71,33 @@ def _meta_match(meta1: SourceMeta, meta2: SourceMeta) -> bool:
         return False
     if meta1.episodes != meta2.episodes:
         return False
-    # Allow nulls and empty as wildcard, else must match
-    d1, d2 = meta1.duration, meta2.duration
-    if (d1 not in (None, 0)) and (d2 not in (None, 0)) and (d1 != d2):
-        return False
+
     y1, y2 = meta1.start_year, meta2.start_year
-    return not ((y1 not in (None, 0)) and (y2 not in (None, 0)) and (y1 != y2))
+    if meta1.type == SourceType.MOVIE and (not y1 or not y2 or y1 != y2):
+        return False
+    if meta1.type == SourceType.TV and (y1 and y2) and (y1 != y2):
+        return False
+
+    d1, d2 = meta1.duration, meta2.duration
+    relative_d = _relative_delta(d1, d2)
+    if meta1.type == SourceType.MOVIE and (not d1 or not d2 or relative_d > 0.1):
+        return False
+    if meta1.type == SourceType.TV and (d1 and d2) and (relative_d > 0.1):  # noqa: SIM103
+        return False
+
+    return True
+
+
+def _relative_delta(a: int | None, b: int | None) -> float:
+    """Calculate relative delta between two integer values."""
+    if a is None or b is None:
+        return -1.0
+    if a == 0 and b == 0:
+        return 0.0
+    denominator = max(abs(a), abs(b))
+    if denominator == 0:
+        return 0.0
+    return abs(a - b) / denominator
 
 
 def _range_from_meta_key(meta_key: MetaKey) -> str | None:
