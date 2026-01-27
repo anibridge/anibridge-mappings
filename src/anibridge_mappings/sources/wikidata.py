@@ -20,8 +20,13 @@ log = getLogger(__name__)
 class WikidataSource(IdMappingSource):
     """Emit AniList-centered ID links derived from Wikidata."""
 
-    ENDPOINT_URL = "https://query.wikidata.org/sparql"
+    # https://query.wikidata.org/sparql (robots policy blocking usage)
+    ENDPOINT_URL = "https://qlever.dev/api/wikidata"
     QUERY = """
+    # PREFIX statements are only required for qlever.dev
+    PREFIX wd: <http://www.wikidata.org/entity/>
+    PREFIX wdt: <http://www.wikidata.org/prop/direct/>
+
     SELECT DISTINCT ?item ?prop ?id WHERE {
         ?item wdt:P31/wdt:P279* wd:Q20650540. # instance/subclass of 'anime film'
 
