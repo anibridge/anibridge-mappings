@@ -34,13 +34,17 @@ from anibridge_mappings.sources.base import (
     IdMappingSource,
     MetadataSource,
 )
+from anibridge_mappings.sources.qlever import (
+    QleverImdbMovieSource,
+    QleverImdbShowSource,
+    QleverWikidataSource,
+)
 from anibridge_mappings.sources.shinkro import (
     ShinkroTmdbMappingSource,
     ShinkroTvdbMappingSource,
 )
-from anibridge_mappings.sources.skyhook import SkyhookSource
 from anibridge_mappings.sources.tmdb import TmdbSource
-from anibridge_mappings.sources.wikidata import WikidataSource
+from anibridge_mappings.sources.tvdb import TvdbMovieSource, TvdbShowSource
 from anibridge_mappings.utils.mapping import (
     build_source_target_map,
     collapse_source_mappings,
@@ -396,9 +400,12 @@ def default_aggregator() -> MappingAggregator:
     anime_offline_db = AnimeOfflineDatabaseSource()
     shinkro_tmdb = ShinkroTmdbMappingSource()
     shinkro_tvdb = ShinkroTvdbMappingSource()
-    skyhook = SkyhookSource()
     tmdb = TmdbSource()
-    wikidata = WikidataSource()
+    tvdb_movie = TvdbMovieSource()
+    tvdb_show = TvdbShowSource()
+    qlever_imdb_movie = QleverImdbMovieSource()
+    qlever_imdb_show = QleverImdbShowSource()
+    qlever_wikidata = QleverWikidataSource()
 
     return MappingAggregator(
         # Order matters for metadata; later sources have higher precedence
@@ -406,8 +413,11 @@ def default_aggregator() -> MappingAggregator:
             anime_offline_db,
             anilist,
             anime_aggregations,
-            skyhook,
+            qlever_imdb_movie,
+            qlever_imdb_show,
             tmdb,
+            tvdb_movie,
+            tvdb_show,
         ),
         id_sources=(
             anime_aggregations,
@@ -415,7 +425,7 @@ def default_aggregator() -> MappingAggregator:
             anime_offline_db,
             shinkro_tmdb,
             shinkro_tvdb,
-            wikidata,
+            qlever_wikidata,
         ),
         episode_sources=(
             anime_lists,
