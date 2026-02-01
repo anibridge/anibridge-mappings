@@ -19,7 +19,7 @@ from anibridge_mappings.core.aggregator import (
 from anibridge_mappings.core.provenance import build_provenance_payload
 from anibridge_mappings.core.stats import build_stats
 
-log = logging.getLogger("anibridge.cli")
+log = logging.getLogger(__name__)
 
 
 def parse_args() -> argparse.Namespace:

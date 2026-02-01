@@ -33,10 +33,10 @@ _A huge thank you to the primary mappings maintainer, [@LuceoEtzio](https://gith
 | [manami-project/anime-offline-database](https://github.com/manami-project/anime-offline-database) | Yes      | Yes         | No               | AniDB, AniList, MAL                   |
 | [notseteve/AnimeAggregations](https://github.com/notseteve/AnimeAggregations)                     | Yes      | Yes         | No               | AniDB, IMDB, MAL, TMDB                |
 | [varoOP/shinkro-mapping](https://github.com/varoOP/shinkro-mapping)                               | No       | Yes         | Yes              | MAL, TMDB, TVDB                       |
-| [Wikidata](https://query.wikidata.org/)                                                           | Not Yet  | Yes         | No               | AniDB, AniList, IMDB, MAL, TMDB, TVDB |
+| [QLever](https://qlever.dev/)                                                                     | Yes      | Yes         | No               | AniDB, AniList, IMDB, MAL, TMDB, TVDB |
 | [AniList GraphQL](https://anilist.co)                                                             | Yes      | Not Yet     | No               | AniList                               |
-| [Sonarr Skyhook](http://skyhook.sonarr.tv/)                                                       | Yes      | Not Yet     | No               | TVDB                                  |
 | [TMDB API](https://www.themoviedb.org/documentation/api)                                          | Yes      | No          | No               | TMDB                                  |
+| [TVDB API](https://thetvdb.com/api-information)                                                   | Yes      | No          | No               | TVDB                                  |
 
 _Note: "Not Yet" indicates potential future work._
 
