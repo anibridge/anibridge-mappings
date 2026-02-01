@@ -26,17 +26,12 @@ class AnimeAggregationsSource(IdMappingSource, MetadataSource):
     def __init__(self) -> None:
         """Initialize the local cache for fetched entries."""
         self._entries: list[dict[str, Any]] = []
-        self._prepared = False
 
     async def prepare(self) -> None:
         """Ensure the repo is present and up to date, then cache entries."""
-        if self._prepared:
-            return
-
         repo_root = self.LOCAL_REPO_ROOT
         await asyncio.to_thread(self._ensure_repo, repo_root)
         self._entries = await asyncio.to_thread(self._load_entries, repo_root)
-        self._prepared = True
 
     async def collect_metadata(self, id_graph: IdMappingGraph) -> MetaStore:
         """Populate and return a metadata store derived from the dataset.
@@ -48,7 +43,6 @@ class AnimeAggregationsSource(IdMappingSource, MetadataSource):
             MetaStore: Collected metadata.
         """
         del id_graph
-        self._ensure_prepared()
 
         store = MetaStore()
         for entry in self._entries:
@@ -102,8 +96,6 @@ class AnimeAggregationsSource(IdMappingSource, MetadataSource):
         Returns:
             IdMappingGraph: ID mapping graph for the dataset.
         """
-        self._ensure_prepared()
-
         graph = IdMappingGraph()
         for entry in self._entries:
             anidb_id = self._normalize_numeric(entry.get("anime_id"))
@@ -133,11 +125,6 @@ class AnimeAggregationsSource(IdMappingSource, MetadataSource):
                 graph.add_equivalence_class(deduped)
 
         return graph
-
-    def _ensure_prepared(self) -> None:
-        """Raise if the source has not been prepared."""
-        if not self._prepared:
-            raise RuntimeError("Source not initialized.")
 
     @classmethod
     def _ensure_repo(cls, repo_root: Path) -> None:
