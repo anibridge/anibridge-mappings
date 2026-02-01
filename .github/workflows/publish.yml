@@ -89,6 +89,7 @@ jobs:
       - name: Build mappings
         env:
           TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+          TVDB_API_KEY: ${{ secrets.TVDB_API_KEY }}
         run: |
           uv run ./main.py --out "$OUTPUT_DIR" --compress --stats --provenance
 
