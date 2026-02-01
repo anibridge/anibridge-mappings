@@ -46,7 +46,7 @@ class ValidationContext:
         episode_graph: EpisodeMappingGraph,
         meta_store: MetaStore,
         id_graph: IdMappingGraph,
-    ) -> "ValidationContext":
+    ) -> ValidationContext:
         """Construct a validation context with a cached source map."""
         return cls(
             episode_graph=episode_graph,

@@ -3,7 +3,7 @@ name = "anibridge-mappings"
 version = "3.0.0"
 description = "Anime mappings for the AniBridge project."
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.14"
 license = { text = "MIT" }
 
 authors = [

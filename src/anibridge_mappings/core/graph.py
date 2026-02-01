@@ -69,7 +69,7 @@ class _BaseGraph[NodeT]:
         for other in unique[1:]:
             self.add_edge(base, other, bidirectional=True)
 
-    def add_graph(self, other: "_BaseGraph[NodeT]") -> None:
+    def add_graph(self, other: _BaseGraph[NodeT]) -> None:
         """Merge another graph's edges into this graph.
 
         Args:

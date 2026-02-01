@@ -42,7 +42,7 @@ class SourceMeta:
         return {key: value for key, value in payload.items() if value is not None}
 
     @classmethod
-    def from_dict(cls, payload: Mapping[str, Any]) -> "SourceMeta":
+    def from_dict(cls, payload: Mapping[str, Any]) -> SourceMeta:
         """Deserialize a `SourceMeta` from a dictionary representation.
 
         Args:
@@ -161,7 +161,7 @@ class MetaStore:
         """
         return list(self._store.items())
 
-    def merge(self, other: "MetaStore") -> None:
+    def merge(self, other: MetaStore) -> None:
         """Merge another `MetaStore` into this instance.
 
         Args:
