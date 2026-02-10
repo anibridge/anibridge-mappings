@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from dotenv import load_dotenv
 from zstandard import ZstdCompressor
 
 from anibridge_mappings.core.aggregator import (
@@ -142,6 +143,8 @@ def write_zstd(path: Path, payload: dict[str, Any]) -> None:
 def main() -> None:
     """Entry point for the CLI application."""
     args = parse_args()
+    load_dotenv()
+
     try:
         configure_logging(args.log_level)
     except ValueError as exc:

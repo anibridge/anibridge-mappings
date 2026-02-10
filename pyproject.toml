@@ -16,6 +16,7 @@ maintainers = [
 
 dependencies = [
     "aiohttp>=3.13.2",
+    "dotenv>=0.9.9",
     "lxml>=6.0.2",
     "pydantic>=2.12.5",
     "ruamel-yaml>=0.19.1",
