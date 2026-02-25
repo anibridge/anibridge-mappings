@@ -137,6 +137,7 @@ jobs:
           set -euo pipefail
           old_file="/tmp/prev-release/mappings.json"
           new_file="/tmp/artifact/mappings.json"
+          diff_file="/tmp/mappings.diff"
 
           if [ ! -f "$new_file" ]; then
             echo "Current mappings.json not found at $new_file"
@@ -145,10 +146,18 @@ jobs:
 
           if [ ! -f "$old_file" ]; then
             echo "No previous mappings.json found for ${{ needs.build.outputs.release_tag }}"
+            : > "$diff_file"
             exit 0
           fi
 
-          diff -u --color=auto "$old_file" "$new_file" || true
+          diff -u --color=auto "$old_file" "$new_file" | tee "$diff_file" || true
+
+      - name: Upload mappings diff artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: mappings-diff
+          path: /tmp/mappings.diff
+          if-no-files-found: error
 
   publish-release:
     if: ${{ github.event_name != 'pull_request' }}
