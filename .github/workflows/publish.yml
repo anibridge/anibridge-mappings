@@ -65,7 +65,7 @@ jobs:
           major="${version%%.*}"
           echo "release_date=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
           echo "release_major=v$major" >> "$GITHUB_OUTPUT"
-          echo "release_tag=mappings-v$major" >> "$GITHUB_OUTPUT"
+          echo "release_tag=v$major" >> "$GITHUB_OUTPUT"
 
       - name: Download previous mappings.json
         env:
@@ -204,7 +204,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.build.outputs.release_tag }}
-          name: Mappings ${{ needs.build.outputs.release_major }}
+          name: Mappings ${{ needs.build.outputs.release_major }} ${{ needs.build.outputs.release_date }}
           body: |
             Automated rolling mappings build for major version ${{ needs.build.outputs.release_major }}.
 
