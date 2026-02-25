@@ -27,6 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       release_tag: ${{ steps.vars.outputs.release_tag }}
+      release_major: ${{ steps.vars.outputs.release_major }}
       release_date: ${{ steps.vars.outputs.release_date }}
     steps:
       - name: Checkout repository
@@ -34,57 +35,52 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Compute workflow vars
-        id: vars
+      - name: Compute cache vars
+        id: cache-vars
         run: |
           set -euo pipefail
           echo "cache_month=$(date -u +%Y-%m)" >> "$GITHUB_OUTPUT"
-          echo "release_date=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
-          echo "release_tag=mappings-$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
 
       - name: Cache metadata
         id: cache-meta
         uses: actions/cache@v5
         with:
           path: data/meta
-          key: meta-${{ steps.vars.outputs.cache_month }}-${{ github.run_id }}
+          key: meta-${{ steps.cache-vars.outputs.cache_month }}-${{ github.run_id }}
           restore-keys: |
-            meta-${{ steps.vars.outputs.cache_month }}-
+            meta-${{ steps.cache-vars.outputs.cache_month }}-
             meta-
-
-      - name: Determine previous release
-        id: prevrel
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          today="${{ steps.vars.outputs.release_tag }}"
-          prev=$(gh release list --limit 50 --json tagName --jq '.[].tagName' | grep -vx "$today" | head -n 1 || true)
-          echo "previous_tag=$prev" >> "$GITHUB_OUTPUT"
-
-      - name: Download previous mappings.json
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          prev="${{ steps.prevrel.outputs.previous_tag }}"
-          if [ -n "$prev" ]; then
-            rm -rf /tmp/prev-release
-            mkdir -p /tmp/prev-release
-            gh release download "$prev" -p "mappings.json" -D /tmp/prev-release || true
-            if [ -f /tmp/prev-release/mappings.json ]; then
-              cp /tmp/prev-release/mappings.json /tmp/mappings.old.json
-            fi
-          fi
-          if [ ! -s /tmp/mappings.old.json ]; then
-            : > /tmp/mappings.old.json
-          fi
 
       - name: Set up uv
         uses: astral-sh/setup-uv@v7
 
       - name: Install dependencies
         run: uv sync --locked
+
+      - name: Compute release vars
+        id: vars
+        run: |
+          set -euo pipefail
+          version=$(uv run python -c "import importlib.metadata; print(importlib.metadata.version('anibridge-mappings'))")
+          major="${version%%.*}"
+          echo "release_date=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+          echo "release_major=v$major" >> "$GITHUB_OUTPUT"
+          echo "release_tag=mappings-v$major" >> "$GITHUB_OUTPUT"
+
+      - name: Download previous mappings.json
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/prev-release
+          mkdir -p /tmp/prev-release
+          gh release download "${{ steps.vars.outputs.release_tag }}" -p "mappings.json" -D /tmp/prev-release || true
+          if [ -f /tmp/prev-release/mappings.json ]; then
+            cp /tmp/prev-release/mappings.json /tmp/mappings.old.json
+          fi
+          if [ ! -s /tmp/mappings.old.json ]; then
+            : > /tmp/mappings.old.json
+          fi
 
       - name: Build mappings
         env:
@@ -98,22 +94,6 @@ jobs:
         with:
           name: data-out
           path: ${{ env.OUTPUT_DIR }}
-          if-no-files-found: error
-
-      - name: Write mappings diff file
-        run: |
-          set -euo pipefail
-          if [ -f "/tmp/mappings.old.json" ] && [ -f "$OUTPUT_DIR/mappings.json" ]; then
-            diff -u /tmp/mappings.old.json "$OUTPUT_DIR/mappings.json" > /tmp/mappings.diff || true
-          else
-            : > /tmp/mappings.diff
-          fi
-
-      - name: Upload mappings diff artifact
-        uses: actions/upload-artifact@v6
-        with:
-          name: mappings-diff
-          path: /tmp/mappings.diff
           if-no-files-found: error
 
       - name: Write workflow summary
@@ -133,9 +113,48 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
+  diff:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: data-out
+          path: /tmp/artifact
+
+      - name: Download previous mappings.json
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/prev-release
+          mkdir -p /tmp/prev-release
+          gh release download "${{ needs.build.outputs.release_tag }}" -p "mappings.json" -D /tmp/prev-release || true
+
+      - name: diff
+        run: |
+          set -euo pipefail
+          old_file="/tmp/prev-release/mappings.json"
+          new_file="/tmp/artifact/mappings.json"
+
+          if [ ! -f "$new_file" ]; then
+            echo "Current mappings.json not found at $new_file"
+            exit 1
+          fi
+
+          if [ ! -f "$old_file" ]; then
+            echo "No previous mappings.json found for ${{ needs.build.outputs.release_tag }}"
+            exit 0
+          fi
+
+          diff -u --color=auto "$old_file" "$new_file" || true
+
   publish-release:
     if: ${{ github.event_name != 'pull_request' }}
-    needs: build
+    needs:
+      - build
+      - diff
     environment: publish
     runs-on: ubuntu-latest
     permissions:
@@ -152,7 +171,6 @@ jobs:
         run: |
           set -euo pipefail
           out_dir="/tmp/artifact"
-          find /tmp/artifact -maxdepth 4 -type d -print >&2 || true # debugging
           if [ ! -d "$out_dir" ]; then
             echo "Missing artifact output dir: $out_dir" >&2
             exit 1
@@ -173,21 +191,16 @@ jobs:
             exit 1
           fi
 
-      - name: Create or update daily release
+      - name: Create or update major release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.build.outputs.release_tag }}
-          name: Mappings ${{ needs.build.outputs.release_date }}
-          body: Automated daily mappings build for ${{ needs.build.outputs.release_date }}.
+          name: Mappings ${{ needs.build.outputs.release_major }}
+          body: |
+            Automated rolling mappings build for major version ${{ needs.build.outputs.release_major }}.
+
+            Last updated: ${{ needs.build.outputs.release_date }}.
           files: /tmp/release-assets/*
           fail_on_unmatched_files: true
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-
-      - name: Keep only last 30 releases
-        uses: dev-drprasad/delete-older-releases@v0.3.4
-        with:
-          keep_latest: 30
-          delete_tags: true
         env:
           GITHUB_TOKEN: ${{ github.token }}
