@@ -14,6 +14,26 @@ def _count_edges(graph: _BaseGraph) -> int:
     return link_count
 
 
+def _compact_count(value: int) -> str:
+    """Return a compact human-readable count string (e.g., 50k)."""
+    if value >= 1_000_000_000:
+        scaled = value / 1_000_000_000
+        suffix = "b"
+    elif value >= 1_000_000:
+        scaled = value / 1_000_000
+        suffix = "m"
+    elif value >= 1_000:
+        scaled = value / 1_000
+        suffix = "k"
+    else:
+        return str(value)
+
+    rounded = round(scaled, 1)
+    if rounded.is_integer():
+        return f"{int(rounded)}{suffix}"
+    return f"{rounded}{suffix}"
+
+
 def build_stats(
     artifacts: AggregationArtifacts, payload: dict[str, Any]
 ) -> dict[str, Any]:
@@ -37,9 +57,13 @@ def build_stats(
     scope_sets: dict[str, set[str | None]] = {}
     source_descriptor_sets: dict[str, set[str]] = {}
     target_descriptor_sets: dict[str, set[str]] = {}
+    source_descriptor_counts: dict[str, int] = {}
+    target_descriptor_counts: dict[str, int] = {}
     source_range_counts: dict[str, int] = {}
     target_range_counts: dict[str, int] = {}
 
+    source_descriptors_total = 0
+    target_descriptors_total = 0
     source_ranges_total = 0
     target_ranges_total = 0
     descriptor_union: set[str] = set()
@@ -56,6 +80,10 @@ def build_stats(
         id_sets.setdefault(src_provider, set()).add(src_id)
         scope_sets.setdefault(src_provider, set()).add(src_scope)
         source_descriptor_sets.setdefault(src_provider, set()).add(source_descriptor)
+        source_descriptor_counts[src_provider] = (
+            source_descriptor_counts.get(src_provider, 0) + 1
+        )
+        source_descriptors_total += 1
 
         for target_descriptor, range_map in targets.items():
             descriptor_union.add(target_descriptor)
@@ -69,6 +97,10 @@ def build_stats(
             target_descriptor_sets.setdefault(tgt_provider, set()).add(
                 target_descriptor
             )
+            target_descriptor_counts[tgt_provider] = (
+                target_descriptor_counts.get(tgt_provider, 0) + 1
+            )
+            target_descriptors_total += 1
 
             source_range_units = len(range_map)
             source_range_counts[src_provider] = (
@@ -89,6 +121,8 @@ def build_stats(
         list(descriptor_sets)
         + list(id_sets)
         + list(scope_sets)
+        + list(source_descriptor_counts)
+        + list(target_descriptor_counts)
         + list(source_range_counts)
         + list(target_range_counts)
         + list(source_descriptor_sets)
@@ -98,6 +132,9 @@ def build_stats(
         stats["distinct_descriptors"] = len(descriptor_sets.get(provider, set()))
         stats["distinct_ids"] = len(id_sets.get(provider, set()))
         stats["distinct_scopes"] = len(scope_sets.get(provider, set()))
+        stats["source_descriptors"] = source_descriptor_counts.get(provider, 0)
+        stats["target_descriptors"] = target_descriptor_counts.get(provider, 0)
+        stats["descriptors"] = stats["source_descriptors"] + stats["target_descriptors"]
         stats["source_range_units"] = source_range_counts.get(provider, 0)
         stats["target_range_units"] = target_range_counts.get(provider, 0)
 
@@ -130,15 +167,27 @@ def build_stats(
                     target_provider_counts.get(tgt_provider, 0) + 1
                 )
 
+    summary = {
+        "providers": len(provider_stats),
+        "distinct_descriptors": len(descriptor_union),
+        "source_descriptors": source_descriptors_total,
+        "target_descriptors": target_descriptors_total,
+        "descriptors": source_descriptors_total + target_descriptors_total,
+        "source_range_units": source_ranges_total,
+        "target_range_units": target_ranges_total,
+        "validation_issues": len(issues),
+    }
+    summary.update(
+        {
+            f"{key}_str": _compact_count(value)
+            for key, value in summary.items()
+            if isinstance(value, int)
+        }
+    )
+
     stats_payload: dict[str, Any] = {
         "meta": payload.get("$meta", {}),
-        "summary": {
-            "providers": len(provider_stats),
-            "distinct_descriptors": len(descriptor_union),
-            "source_range_units": source_ranges_total,
-            "target_range_units": target_ranges_total,
-            "validation_issues": len(issues),
-        },
+        "summary": summary,
         "providers": {
             provider: provider_stats[provider] for provider in sorted(provider_stats)
         },
