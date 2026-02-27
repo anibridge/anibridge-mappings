@@ -165,7 +165,7 @@ class MetaIndex:
                 if isinstance(episodes, int) and episodes > 0:
                     return episodes
 
-        if default_show_scope and len(payload) == 1:
+        if default_show_scope and normalized_scope is None and len(payload) == 1:
             only = next(iter(payload.values()))
             if isinstance(only, dict):
                 episodes = only.get("episodes")
@@ -490,9 +490,7 @@ def _extract_legacy_show_mappings(
                 units = None
                 break
             units += source_units
-            items.append(
-                (target, ",".join(segment.format() for segment in parsed), units)
-            )
+        items.append((target, ",".join(segment.format() for segment in parsed), units))
 
     if not items:
         return 0
