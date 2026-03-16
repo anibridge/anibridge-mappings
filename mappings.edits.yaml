@@ -31148,6 +31148,8 @@ anilist:134623:
 anilist:134710:
   tmdb_show:88040:s0:
     "1": "1"
+  tvdb_movie:176030: # Given OVA: Uragawa no Sonzai — TVDB movie linked via S00E04 on tvdb_show:361218
+    "1": "1"
   tvdb_show:361218:s0:
     "1": "4"
 anilist:134761:
@@ -35557,7 +35559,9 @@ anilist:162987:
     "1": "1"
   mal:54791:
     "1": "1"
-  tmdb_movie:1103481:
+  tmdb_movie:1230477: # corrected from 1103481
+    "1": "1"
+  tvdb_movie:350999: # Given: Hiiragi Mix — TVDB movie linked via S00E02 on tvdb_show:361218
     "1": "1"
   tvdb_show:361218:s0:
     "1": "2"
@@ -35957,8 +35961,10 @@ anilist:167990:
     "1-12": "19-30"
   tvdb_show:398544:s0:
     "1-12": "19-30"
-anilist:168013:
+anilist:168013: # My Hero Academia: You're Next
   mal:56196:
+    "1": "1"
+  tvdb_movie:348893:
     "1": "1"
 anilist:168081:
   tmdb_show:70311:s0:
@@ -37162,6 +37168,8 @@ anilist:175199:
     "1": "1"
   tmdb_movie:1317276:
     "1": "1"
+  tvdb_movie:354306: # Given: Umi e (To the Sea) — TVDB movie linked via S00E03 on tvdb_show:361218
+    "1": "1"
   tvdb_show:361218:s0:
     "1": "3"
 anilist:175277:
@@ -38148,13 +38156,17 @@ anilist:178781:
 anilist:178782:
   mal:59190:
     "1": "1"
-anilist:178788:
+anilist:178788: # Demon Slayer: Infinity Castle — add tvdb_movie and tvdb_show cross-references
   anidb:18699:R:
     "1": "1"
   mal:59192:
     "1": "1"
   tmdb_movie:1311031:
     "1": "1"
+  tvdb_movie:357928:
+    "1": "1"
+  tvdb_show:348545:s0: # linked as special on the Demon Slayer series
+    "1": "16"
 anilist:179062:
   tvdb_show:355480:s3:
     "1-13": "13-25"
@@ -39930,6 +39942,14 @@ anilist:195153:
     "2-13": "1-12"
 anilist:195187:
   mal:62301:
+    "1": "1"
+anilist:195200: # Demon Slayer: Infinity Castle Part 2 (not yet released)
+  tmdb_movie:1311034:
+    "1": "1"
+  tvdb_movie:357930:
+    "1": "1"
+anilist:195201: # Demon Slayer: Infinity Castle Part 3 (not yet released)
+  tvdb_movie:357931:
     "1": "1"
 anilist:195209:
   tvdb_show:454916:s1:
