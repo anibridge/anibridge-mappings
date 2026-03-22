@@ -356,9 +356,9 @@ def _compute_ratio(source_len: int, target_len: int) -> int | None:
     if target_len == source_len:
         return None
     larger, smaller, sign = (
-        (target_len, source_len, 1)
+        (target_len, source_len, -1)
         if target_len > source_len
-        else (source_len, target_len, -1)
+        else (source_len, target_len, 1)
     )
     if smaller == 0 or larger % smaller != 0:
         return None

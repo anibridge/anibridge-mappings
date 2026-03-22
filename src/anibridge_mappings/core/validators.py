@@ -202,11 +202,12 @@ def _segment_source_units(segment: SegmentBounds) -> int | None:
     length = segment.end - segment.start + 1
     if segment.ratio is None:
         return length
-    if segment.ratio > 0:
-        if length % segment.ratio != 0:
+    if segment.ratio < 0:
+        divisor = abs(segment.ratio)
+        if length % divisor != 0:
             return None
-        return length // segment.ratio
-    return length * abs(segment.ratio)
+        return length // divisor
+    return length * segment.ratio
 
 
 class MappingRangeValidator(MappingValidator):
