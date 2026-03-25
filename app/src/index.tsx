@@ -270,11 +270,7 @@ app.doc31("/openapi.json", {
 
 app.get(
   "/docs",
-  swaggerUI({
-    url: "/openapi.json",
-    title: "AniBridge Mappings API",
-    version: "3.0.0",
-  }),
+  swaggerUI({ url: "/openapi.json", title: "AniBridge Mappings API" }),
 );
 
 if (!import.meta.env.DEV) {
