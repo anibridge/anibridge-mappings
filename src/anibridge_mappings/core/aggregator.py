@@ -294,7 +294,7 @@ class MappingAggregator:
                     provenance=ProvenanceContext(
                         stage="Validation: rule-based pruning",
                         actor=f"Validator: {issue.validator}",
-                        reason="Removed mapping that failed validation rules",
+                        reason=_validation_prune_reason(issue),
                         details={
                             "message": issue.message,
                             "validator": issue.validator,
@@ -317,6 +317,30 @@ class MappingAggregator:
         ):
             seen[id(source)] = source
         return tuple(seen.values())
+
+
+def _validation_prune_reason(issue: ValidationIssue) -> str:
+    """Build a specific provenance reason for a validation-driven prune."""
+    source = issue.source or "unknown-source"
+    target = issue.target or "unknown-target"
+    source_range = issue.source_range or "?"
+    target_range = issue.target_range or "?"
+    base = f"{issue.message} [{source} {source_range} -> {target} {target_range}]"
+
+    if not issue.details:
+        return base
+
+    detail_parts: list[str] = []
+    for key in sorted(issue.details):
+        value = issue.details[key]
+        if value in (None, "", [], {}):
+            continue
+        detail_parts.append(f"{key}={value}")
+
+    if not detail_parts:
+        return base
+
+    return f"{base}; {'; '.join(detail_parts)}"
 
 
 def mapping_descriptor(provider: str, entry_id: str, scope: str | None) -> str:
