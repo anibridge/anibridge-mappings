@@ -248,6 +248,7 @@ const MappingTimelineCarousel = ({
   mappingId: number;
 }) => {
   const events = mapping.ev ?? [];
+  const [isOpen, setIsOpen] = useState(false);
   if (!events.length) {
     return (
       <div class="rounded-xl border border-slate-200/70 bg-white/70 px-3 py-2 text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-950/40 dark:text-slate-400">
@@ -256,37 +257,59 @@ const MappingTimelineCarousel = ({
     );
   }
 
-  const activeRanges = new Map<string, Set<string>>();
-  const sourceDescriptor = getDictValue(dict, "descriptors", mapping.s) || "-";
-  const targetDescriptor = getDictValue(dict, "descriptors", mapping.t) || "-";
-  let previousJson = JSON.stringify(
-    { [sourceDescriptor]: { [targetDescriptor]: {} } },
-    null,
-    2,
-  );
-  const slides = events.map((event, index) => {
-    const snapshot = buildSnapshot(dict, event, activeRanges);
-    const snapshotJson = JSON.stringify(
-      { [sourceDescriptor]: { [targetDescriptor]: snapshot.orderedRanges } },
+  const slides = useMemo(() => {
+    if (!isOpen)
+      return [] as Array<{
+        index: number;
+        stepNumber: number;
+        snapshot: ReturnType<typeof buildSnapshot>;
+        diff: DiffLine[];
+      }>;
+
+    const activeRanges = new Map<string, Set<string>>();
+    const sourceDescriptor =
+      getDictValue(dict, "descriptors", mapping.s) || "-";
+    const targetDescriptor =
+      getDictValue(dict, "descriptors", mapping.t) || "-";
+    let previousJson = JSON.stringify(
+      { [sourceDescriptor]: { [targetDescriptor]: {} } },
       null,
       2,
     );
-    const diff = renderDiffLines(previousJson, snapshotJson);
-    previousJson = snapshotJson;
-    return { index, stepNumber: index + 1, snapshot, diff };
-  });
-  const displaySlides = [...slides].reverse();
+
+    return events.map((event, index) => {
+      const snapshot = buildSnapshot(dict, event, activeRanges);
+      const snapshotJson = JSON.stringify(
+        { [sourceDescriptor]: { [targetDescriptor]: snapshot.orderedRanges } },
+        null,
+        2,
+      );
+      const diff = renderDiffLines(previousJson, snapshotJson);
+      previousJson = snapshotJson;
+      return { index, stepNumber: index + 1, snapshot, diff };
+    });
+  }, [isOpen, events, dict, mapping.s, mapping.t]);
+
+  const displaySlides = useMemo(() => [...slides].reverse(), [slides]);
 
   return (
     <details
       class="rounded-2xl border border-slate-200/70 bg-white/70 px-3 py-3 text-xs text-slate-600 shadow-sm dark:border-slate-800 dark:bg-slate-950/40 dark:text-slate-300"
       data-carousel
       data-carousel-id={`mapping-${mappingId}`}
+      onToggle={(event: Event) =>
+        setIsOpen((event.currentTarget as HTMLDetailsElement).open)
+      }
     >
       <summary class="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
         <span>Timeline</span>
         <span>{mapping.n ?? events.length} steps</span>
       </summary>
+      {!isOpen ? (
+        <div class="mt-3 text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          Expand to load timeline
+        </div>
+      ) : null}
       <div class="mt-3 flex items-center justify-between gap-2">
         <button
           type="button"
