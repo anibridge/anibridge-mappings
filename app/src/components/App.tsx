@@ -20,6 +20,7 @@ import {
 type MappingWithId = Mapping & { id: number };
 type SortColumn = "default" | "state" | "source" | "target" | "steps";
 type SortDirection = "asc" | "desc";
+type MappingViewFormat = "json" | "yaml";
 type DiffLine = { key: string; type: "add" | "remove" | "same"; text: string };
 type TimelineSlide = {
   index: number;
@@ -185,6 +186,7 @@ const buildTimelineSlides = (dict: Dict, mapping: Mapping): TimelineSlide[] => {
 const stepLabel = (step: number, total: number) => `Step ${step} / ${total}`;
 
 const MAPPING_QUERY_PARAM = "mapping";
+const MAPPING_VIEW_FORMAT_STORAGE_KEY = "anibridge:mapping-view-format";
 
 const getSelectedIdFromUrl = (): number | null => {
   if (typeof window === "undefined") return null;
@@ -213,6 +215,71 @@ const setSelectedIdInUrl = (selectedId: number | null, replace = false) => {
   window.history.pushState(null, "", nextUrl);
 };
 
+const getMappingViewFormatFromStorage = (): MappingViewFormat => {
+  if (typeof window === "undefined") return "json";
+  const stored = window.localStorage.getItem(MAPPING_VIEW_FORMAT_STORAGE_KEY);
+  return stored === "yaml" ? "yaml" : "json";
+};
+
+const formatYamlValue = (
+  value: string | Record<string, unknown>,
+  depth = 0,
+): string => {
+  const indent = "  ".repeat(depth);
+  if (typeof value === "string") {
+    return JSON.stringify(value);
+  }
+
+  const entries = Object.entries(value);
+  if (!entries.length) return "{}";
+
+  return entries
+    .map(([key, child]) => {
+      const normalizedChild = child as string | Record<string, unknown>;
+      if (
+        typeof normalizedChild === "object" &&
+        normalizedChild !== null &&
+        Object.keys(normalizedChild).length
+      ) {
+        return `${indent}${JSON.stringify(key)}:\n${formatYamlValue(normalizedChild, depth + 1)}`;
+      }
+      if (typeof normalizedChild === "object" && normalizedChild !== null) {
+        return `${indent}${JSON.stringify(key)}: {}`;
+      }
+      return `${indent}${JSON.stringify(key)}: ${formatYamlValue(normalizedChild, depth + 1)}`;
+    })
+    .join("\n");
+};
+
+const buildFinalMappingView = (dict: Dict, mapping: Mapping) => {
+  const sourceDescriptor = getDictValue(dict, "descriptors", mapping.s) || "-";
+  const targetDescriptor = getDictValue(dict, "descriptors", mapping.t) || "-";
+  const activeRanges = new Map<string, string>();
+
+  for (const event of mapping.ev ?? []) {
+    if (!event.e) continue;
+    const action = getDictValue(dict, "actions", event.a) || "";
+    const range = getRange(dict, event.r);
+    const sourceRange = range.source_range || "-";
+    const targetRange = range.target_range || "-";
+
+    if (action === "add") {
+      activeRanges.set(sourceRange, targetRange);
+    }
+    if (action === "remove" && activeRanges.get(sourceRange) === targetRange) {
+      activeRanges.delete(sourceRange);
+    }
+  }
+
+  const orderedRanges = Object.fromEntries(
+    [...activeRanges.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([source, target]) => [source, target]),
+  );
+
+  return { [sourceDescriptor]: { [targetDescriptor]: orderedRanges } };
+};
+
 export const App = () => {
   const [payload, setPayload] = useState<ProvenancePayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -225,6 +292,9 @@ export const App = () => {
   );
   const [timelineOpen, setTimelineOpen] = useState(false);
   const [timelineStep, setTimelineStep] = useState(0);
+  const [mappingViewFormat, setMappingViewFormat] = useState<MappingViewFormat>(
+    () => getMappingViewFormatFromStorage(),
+  );
 
   useEffect(() => {
     let active = true;
@@ -343,9 +413,16 @@ export const App = () => {
   }, [selectedId]);
 
   useEffect(() => {
-    if (selectedId === null) return;
-    setTimelineOpen(true);
+    setTimelineOpen(false);
   }, [selectedId]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(
+      MAPPING_VIEW_FORMAT_STORAGE_KEY,
+      mappingViewFormat,
+    );
+  }, [mappingViewFormat]);
 
   const selected = useMemo(
     () => rows.find((item) => item.id === selectedId) ?? null,
@@ -360,6 +437,15 @@ export const App = () => {
     : "";
   const selectedSourceExternal = descriptorToExternal(selectedSource);
   const selectedTargetExternal = descriptorToExternal(selectedTarget);
+
+  const finalMappingView = useMemo(() => {
+    if (!payload || !selected) return "";
+    const mappingObject = buildFinalMappingView(payload.dict, selected);
+    if (mappingViewFormat === "yaml") {
+      return formatYamlValue(mappingObject);
+    }
+    return JSON.stringify(mappingObject, null, 2);
+  }, [payload, selected, mappingViewFormat]);
 
   const timelineSlides = useMemo(() => {
     if (!timelineOpen || !payload || !selected) return [] as TimelineSlide[];
@@ -526,7 +612,6 @@ export const App = () => {
                     onClick={() => {
                       setSelectedIdInUrl(mapping.id);
                       setSelectedId(mapping.id);
-                      setTimelineOpen(true);
                     }}
                   >
                     <span class="truncate">
@@ -650,6 +735,43 @@ export const App = () => {
                     </div>
                   </div>
                 </div>
+
+                <section class="mt-2 border border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-800">
+                  <div class="border-b border-slate-300 bg-slate-100 px-2 py-1.5 dark:border-slate-600 dark:bg-slate-700">
+                    <div class="mb-1 flex items-center justify-between gap-2">
+                      <div class="text-xs font-semibold text-slate-700 dark:text-slate-100">
+                        Mapping
+                      </div>
+                      <div class="inline-flex items-center gap-1 text-xs">
+                        <button
+                          type="button"
+                          class={`border px-2 py-0.5 ${
+                            mappingViewFormat === "json"
+                              ? "border-sky-700 bg-sky-50 text-sky-800 dark:border-sky-300 dark:bg-sky-950/30 dark:text-sky-200"
+                              : "border-slate-400 bg-white text-slate-700 dark:border-slate-500 dark:bg-slate-800 dark:text-slate-300"
+                          }`}
+                          onClick={() => setMappingViewFormat("json")}
+                        >
+                          JSON
+                        </button>
+                        <button
+                          type="button"
+                          class={`border px-2 py-0.5 ${
+                            mappingViewFormat === "yaml"
+                              ? "border-sky-700 bg-sky-50 text-sky-800 dark:border-sky-300 dark:bg-sky-950/30 dark:text-sky-200"
+                              : "border-slate-400 bg-white text-slate-700 dark:border-slate-500 dark:bg-slate-800 dark:text-slate-300"
+                          }`}
+                          onClick={() => setMappingViewFormat("yaml")}
+                        >
+                          YAML
+                        </button>
+                      </div>
+                    </div>
+                    <pre class="max-h-[260px] overflow-auto border border-slate-300 bg-white p-2 font-mono text-xs dark:border-slate-600 dark:bg-slate-800">
+                      {finalMappingView}
+                    </pre>
+                  </div>
+                </section>
 
                 <details
                   open={timelineOpen}
