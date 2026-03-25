@@ -17,7 +17,11 @@ from anibridge_mappings.core.aggregator import (
     build_schema_payload,
     default_aggregator,
 )
-from anibridge_mappings.core.provenance import build_provenance_payload
+from anibridge_mappings.core.provenance import (
+    build_provenance_payload,
+    validate_provenance_payload,
+    write_provenance_payload,
+)
 from anibridge_mappings.core.stats import build_stats, render_stats_markdown
 
 log = logging.getLogger(__name__)
@@ -68,8 +72,8 @@ def parse_args() -> argparse.Namespace:
         "--provenance",
         action="store_true",
         help=(
-            "Write a provenance.json file with per-mapping timelines for debugging "
-            "and UI usage."
+            "Write provenance.zip with manifest/index files and per-descriptor "
+            "provenance timelines."
         ),
     )
     return parser.parse_args()
@@ -179,10 +183,18 @@ def main() -> None:
         log.info("Wrote %s", stats_md_path)
 
     if args.provenance:
-        provenance_path = output_path.with_name("provenance.json")
+        provenance_path = output_path.with_name("provenance.zip")
         provenance_payload = build_provenance_payload(artifacts.episode_graph)
-        write_payload(provenance_path, provenance_payload, pretty=False)
-        log.info("Wrote %s", provenance_path)
+        validate_provenance_payload(provenance_payload)
+        write_provenance_payload(provenance_path, provenance_payload)
+        provenance_summary = provenance_payload["manifest"]["summary"]
+        log.info(
+            "Wrote %s (%d descriptors, %d mappings, %d events)",
+            provenance_path,
+            provenance_summary["descriptors"],
+            provenance_summary["mappings"],
+            provenance_summary["events"],
+        )
 
     if args.compress:
         minified_path = output_path.with_name(
