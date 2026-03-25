@@ -1,3 +1,5 @@
+import { parseProvenanceZip } from "./provenanceZip";
+
 export type DictRange = { s?: string; t?: string };
 export type Dict = {
   descriptors: string[];
@@ -31,7 +33,7 @@ export type ProvenancePayload = {
   $meta?: Record<string, unknown>;
 };
 
-const PROVENANCE_URL = "/data/provenance.json";
+const PROVENANCE_URL = "/data/provenance.zip";
 
 let provenancePromise: Promise<ProvenancePayload> | null = null;
 
@@ -39,14 +41,14 @@ export const getProvenance = async (): Promise<ProvenancePayload> => {
   if (!provenancePromise) {
     provenancePromise = (async () => {
       const res = await fetch(PROVENANCE_URL, {
-        headers: { Accept: "application/json" },
+        headers: { Accept: "application/zip" },
       });
       if (!res.ok) {
         throw new Error(
           `Failed to fetch provenance: ${res.status} ${res.statusText}`,
         );
       }
-      return (await res.json()) as ProvenancePayload;
+      return parseProvenanceZip(await res.arrayBuffer()) as ProvenancePayload;
     })().catch((err) => {
       provenancePromise = null;
       throw err;
@@ -231,7 +233,7 @@ export const filterMappings = (
       .sort(
         (a, b) =>
           (b.mapping.n ?? b.mapping.ev?.length ?? 0) -
-            (a.mapping.n ?? a.mapping.ev?.length ?? 0) ||
+          (a.mapping.n ?? a.mapping.ev?.length ?? 0) ||
           mappingLabel(a.mapping, dict).localeCompare(
             mappingLabel(b.mapping, dict),
           ),
