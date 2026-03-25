@@ -552,9 +552,9 @@ export const App = () => {
             }
             class="w-full border border-slate-400 bg-white px-2 py-1 text-xs outline-none focus:border-sky-700 dark:border-slate-500 dark:bg-slate-800 dark:text-slate-100 dark:focus:border-sky-300"
           >
-            <option value="all">all</option>
             <option value="present">present</option>
             <option value="missing">missing</option>
+            <option value="all">all</option>
           </select>
         </section>
 
