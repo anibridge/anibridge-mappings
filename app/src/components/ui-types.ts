@@ -1,6 +1,6 @@
 import type { Mapping } from "../utils/provenance";
 
-export type MappingWithId = Mapping & { id: number };
+export type MappingWithId = Mapping & { id: number; key: string };
 
 export type SortColumn = "default" | "state" | "source" | "target" | "steps";
 export type SortDirection = "asc" | "desc";

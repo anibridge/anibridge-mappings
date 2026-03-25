@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "hono/jsx/dom";
 import type { MappingFilters, ProvenancePayload } from "../utils/provenance";
 import {
+  Dict,
   filterMappings,
   getDictValue,
   getProvenance,
@@ -22,7 +23,11 @@ import {
   descriptorToExternal,
   formatMappingView,
 } from "../utils/mapping-presentation";
-import { getSelectedIdFromUrl, setSelectedIdInUrl } from "../utils/url-state";
+import {
+  buildDescriptorMappingKey,
+  getSelectedMappingKeyFromUrl,
+  setSelectedMappingKeyInUrl,
+} from "../utils/url-state";
 
 const MAPPING_VIEW_FORMAT_STORAGE_KEY = "anibridge:mapping-view-format";
 
@@ -45,6 +50,15 @@ const getMappingViewFormatFromStorage = (): MappingViewFormat => {
   return stored === "yaml" ? "yaml" : "json";
 };
 
+const mappingDescriptorKey = (
+  dict: Dict,
+  mapping: { s: number; t: number },
+) => {
+  const sourceDescriptor = getDictValue(dict, "descriptors", mapping.s) || "";
+  const targetDescriptor = getDictValue(dict, "descriptors", mapping.t) || "";
+  return buildDescriptorMappingKey(sourceDescriptor, targetDescriptor);
+};
+
 export const App = () => {
   const [payload, setPayload] = useState<ProvenancePayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -52,8 +66,8 @@ export const App = () => {
   const [filters, setFilters] = useState<MappingFilters>(DEFAULT_FILTERS);
   const [sortColumn, setSortColumn] = useState<SortColumn>("default");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
-  const [selectedId, setSelectedId] = useState<number | null>(() =>
-    getSelectedIdFromUrl(),
+  const [selectedKey, setSelectedKey] = useState<string | null>(() =>
+    getSelectedMappingKeyFromUrl(),
   );
   const [timelineOpen, setTimelineOpen] = useState(false);
   const [timelineStep, setTimelineStep] = useState(0);
@@ -139,38 +153,50 @@ export const App = () => {
   }, [payload, filtered, filters]);
 
   const rows: MappingWithId[] = useMemo(
-    () => paged.items.map(({ index, mapping }) => ({ id: index, ...mapping })),
-    [paged.items],
+    () =>
+      paged.items.map(({ index, mapping }) => ({
+        id: index,
+        key: payload ? mappingDescriptorKey(payload.dict, mapping) : "",
+        ...mapping,
+      })),
+    [paged.items, payload],
   );
 
   useEffect(() => {
-    if (!rows.length) {
-      setSelectedId(null);
+    if (!payload) {
+      return;
+    }
+
+    if (!filtered.length) {
+      setSelectedKey(null);
       setTimelineOpen(false);
       return;
     }
 
-    setSelectedId((prev) => {
-      if (prev === null) return rows[0]?.id ?? null;
-      return rows.some((item) => item.id === prev)
+    setSelectedKey((prev) => {
+      const firstKey = mappingDescriptorKey(payload.dict, filtered[0].mapping);
+      if (prev === null) return firstKey;
+      return filtered.some(
+        ({ mapping }) => mappingDescriptorKey(payload.dict, mapping) === prev,
+      )
         ? prev
-        : (rows[0]?.id ?? null);
+        : firstKey;
     });
-  }, [rows]);
+  }, [payload, filtered]);
 
   useEffect(() => {
-    const onPopState = () => setSelectedId(getSelectedIdFromUrl());
+    const onPopState = () => setSelectedKey(getSelectedMappingKeyFromUrl());
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
 
   useEffect(() => {
-    setSelectedIdInUrl(selectedId, true);
-  }, [selectedId]);
+    setSelectedMappingKeyInUrl(selectedKey, true);
+  }, [selectedKey]);
 
   useEffect(() => {
     setTimelineOpen(false);
-  }, [selectedId]);
+  }, [selectedKey]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -180,10 +206,18 @@ export const App = () => {
     );
   }, [mappingViewFormat]);
 
-  const selected = useMemo(
-    () => rows.find((item) => item.id === selectedId) ?? null,
-    [rows, selectedId],
+  const selectedEntry = useMemo(
+    () =>
+      payload
+        ? (filtered.find(
+            ({ mapping }) =>
+              mappingDescriptorKey(payload.dict, mapping) === selectedKey,
+          ) ?? null)
+        : null,
+    [payload, filtered, selectedKey],
   );
+
+  const selected = selectedEntry?.mapping ?? null;
 
   const selectedSource =
     payload && selected
@@ -214,7 +248,7 @@ export const App = () => {
       return;
     }
     setTimelineStep(timelineSlides.length - 1);
-  }, [timelineSlides.length, timelineOpen, selectedId]);
+  }, [timelineSlides.length, timelineOpen, selectedKey]);
 
   const updateFilter = (key: keyof MappingFilters, value: string) => {
     setFilters((prev) => ({ ...prev, [key]: value, page: 1 }));
@@ -275,12 +309,12 @@ export const App = () => {
           <MappingsTable
             dict={payload.dict}
             rows={rows}
-            selectedId={selectedId}
+            selectedKey={selectedKey}
             sortLabel={sortLabel}
             onSort={updateSort}
-            onSelect={(mappingId) => {
-              setSelectedIdInUrl(mappingId);
-              setSelectedId(mappingId);
+            onSelect={(mappingKey) => {
+              setSelectedMappingKeyInUrl(mappingKey);
+              setSelectedKey(mappingKey);
             }}
             paged={{ page: paged.page, pages: paged.pages }}
             setFilters={(updater) => setFilters(updater)}

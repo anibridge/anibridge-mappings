@@ -5,10 +5,10 @@ import type { MappingWithId, SortColumn } from "./ui-types";
 type MappingsTableProps = {
   dict: Dict;
   rows: MappingWithId[];
-  selectedId: number | null;
+  selectedKey: string | null;
   sortLabel: (column: SortColumn) => string;
   onSort: (column: SortColumn) => void;
-  onSelect: (mappingId: number) => void;
+  onSelect: (mappingKey: string) => void;
   paged: { page: number; pages: number };
   setFilters: (updater: (prev: MappingFilters) => MappingFilters) => void;
 };
@@ -16,7 +16,7 @@ type MappingsTableProps = {
 export const MappingsTable = ({
   dict,
   rows,
-  selectedId,
+  selectedKey,
   sortLabel,
   onSort,
   onSelect,
@@ -57,7 +57,7 @@ export const MappingsTable = ({
           const source = getDictValue(dict, "descriptors", mapping.s) || "-";
           const target = getDictValue(dict, "descriptors", mapping.t) || "-";
           const steps = mapping.n ?? mapping.ev?.length ?? 0;
-          const active = selectedId === mapping.id;
+          const active = selectedKey === mapping.key;
 
           return (
             <button
@@ -68,7 +68,7 @@ export const MappingsTable = ({
                   ? "bg-sky-100 dark:bg-sky-800/35"
                   : "bg-white hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700"
               }`}
-              onClick={() => onSelect(mapping.id)}
+              onClick={() => onSelect(mapping.key)}
             >
               <span class="truncate">{mapping.p ? "present" : "missing"}</span>
               <span class="truncate">{source}</span>
