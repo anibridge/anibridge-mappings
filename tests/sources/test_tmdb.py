@@ -50,10 +50,12 @@ def test_tmdb_get_or_fetch_show_meta_uses_cache_and_parses_seasons(monkeypatch) 
         assert base_id == "55"
         return (
             {
+                "name": "Show Name",
+                "original_name": "Show Name Original",
                 "seasons": [
                     {"season_number": 1, "episode_count": 12, "air_date": "2020-01-01"},
                     {"season_number": 2, "episode_count": 0, "air_date": "2021-01-01"},
-                ]
+                ],
             },
             True,
         )
@@ -69,6 +71,7 @@ def test_tmdb_get_or_fetch_show_meta_uses_cache_and_parses_seasons(monkeypatch) 
     assert cacheable is True
     assert scope_meta is not None and scope_meta["s1"].episodes == 12
     assert scope_meta["s1"].start_year == 2020
+    assert scope_meta["s1"].titles == ("Show Name", "Show Name Original")
     assert scope_meta is not None and "s2" not in scope_meta
 
     # second call should hit in-memory cache

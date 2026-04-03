@@ -67,6 +67,13 @@ def test_anilist_fetch_missing_parses_results_and_handles_rate_limit(
                                 "format": "TV",
                                 "seasonYear": 2020,
                                 "duration": 24,
+                                "title": {
+                                    "romaji": "Title One",
+                                    "english": "Title One EN",
+                                    "native": None,
+                                    "userPreferred": "Title One",
+                                },
+                                "synonyms": ["Title One Alt"],
                             },
                             {
                                 "id": 2,
@@ -74,6 +81,13 @@ def test_anilist_fetch_missing_parses_results_and_handles_rate_limit(
                                 "format": "MOVIE",
                                 "seasonYear": 2021,
                                 "duration": 100,
+                                "title": {
+                                    "romaji": "Movie Two",
+                                    "english": None,
+                                    "native": None,
+                                    "userPreferred": "Movie Two",
+                                },
+                                "synonyms": [],
                             },
                         ]
                     }
@@ -99,9 +113,11 @@ def test_anilist_fetch_missing_parses_results_and_handles_rate_limit(
     scope_2 = by_id["2"]
     assert scope_1 is not None and scope_1[None].episodes == 12
     assert scope_2 is not None and scope_2[None].episodes == 1
+    assert scope_1[None].titles == ("Title One", "Title One EN", "Title One Alt")
     meta_2 = scope_2[None]
     assert meta_2 is not None
     assert meta_2.type is not None and meta_2.type.value == "movie"
+    assert meta_2.titles == ("Movie Two",)
     assert by_id["3"] is None
 
 

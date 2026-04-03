@@ -73,7 +73,13 @@ def test_cached_metadata_loads_versioned_payload(tmp_path) -> None:
         "version": source.CACHE_VERSION,
         "entries": {
             "1": {
-                "": {"type": "tv", "episodes": 2, "duration": 24, "start_year": 2020}
+                "": {
+                    "type": "tv",
+                    "episodes": 2,
+                    "duration": 24,
+                    "start_year": 2020,
+                    "titles": ["Cached Title"],
+                }
             },
             "2": None,
         },
@@ -83,6 +89,7 @@ def test_cached_metadata_loads_versioned_payload(tmp_path) -> None:
     loaded = source._load_cache()
     loaded_1 = loaded["1"]
     assert loaded_1 is not None and loaded_1[None].episodes == 2
+    assert loaded_1 is not None and loaded_1[None].titles == ("Cached Title",)
     assert loaded["2"] is None
 
 

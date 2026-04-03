@@ -57,3 +57,4 @@ def test_anime_offline_build_graph_and_metadata() -> None:
     assert meta is not None
     assert meta.episodes == 24
     assert meta.start_year == 2021
+    assert meta.titles == ("x",)

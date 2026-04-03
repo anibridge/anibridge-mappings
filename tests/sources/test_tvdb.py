@@ -85,16 +85,18 @@ def test_tvdb_build_show_scope_meta_marks_recent_incomplete() -> None:
         {"seasonNumber": 2, "airDate": recent},
     ]
 
-    scope_meta = source._build_show_scope_meta(episodes, 24)
+    scope_meta = source._build_show_scope_meta(episodes, 24, ["Show Title"])
     assert scope_meta["s1"].episodes == 2
     assert scope_meta["s2"].episodes is None
+    assert scope_meta["s1"].titles == ("Show Title",)
 
 
 def test_tvdb_movie_and_show_response_parsing() -> None:
     movie_source = TvdbMovieSource()
-    movie = movie_source._build_movie_meta(110, "2022-01-01")
+    movie = movie_source._build_movie_meta(110, "2022-01-01", ["Movie Title"])
     assert movie.episodes == 1
     assert movie.start_year == 2022
+    assert movie.titles == ("Movie Title",)
 
     show_source = TvdbShowSource()
     movie_dict: dict[str | None, SourceMeta] = {"s1": movie}
@@ -215,7 +217,16 @@ def test_tvdb_show_and_movie_fetch_entry_parsing(monkeypatch) -> None:
 
     async def _fake_movie_payload(session, base_id):
         del session, base_id
-        return ({"data": {"runtimeMinutes": 95, "released": "2020-10-01"}}, True)
+        return (
+            {
+                "data": {
+                    "runtimeMinutes": 95,
+                    "released": "2020-10-01",
+                    "name": "Movie Name",
+                }
+            },
+            True,
+        )
 
     monkeypatch.setattr(movie_source, "_request_movie_payload", _fake_movie_payload)
 
@@ -230,3 +241,4 @@ def test_tvdb_show_and_movie_fetch_entry_parsing(monkeypatch) -> None:
     assert scope_meta is not None
     assert scope_meta[None].episodes == 1
     assert scope_meta[None].duration == 95
+    assert scope_meta[None].titles == ("Movie Name",)
