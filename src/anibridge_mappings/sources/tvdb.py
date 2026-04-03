@@ -10,7 +10,7 @@ from typing import Any
 import aiohttp
 from anibridge.utils.cache import cache
 
-from anibridge_mappings.core.meta import SourceMeta, SourceType
+from anibridge_mappings.core.meta import SourceMeta, SourceType, normalize_titles
 from anibridge_mappings.sources.base import CachedMetadataSource
 
 log = getLogger(__name__)
@@ -24,7 +24,7 @@ class BaseTvdbSource(CachedMetadataSource):
     API_KEY_ENV = "TVDB_API_KEY"
     API_PIN_ENV = "TVDB_PIN"
     RECENT_AIR_DAYS = 180
-    CACHE_VERSION = 2
+    CACHE_VERSION = 3
 
     def __init__(self, concurrency: int = 6) -> None:
         """Initialize the TVDB source with a specific concurrency level.
@@ -182,7 +182,10 @@ class BaseTvdbSource(CachedMetadataSource):
         return None
 
     def _build_show_scope_meta(
-        self, episodes: Iterable[dict[str, Any]], runtime: Any | None
+        self,
+        episodes: Iterable[dict[str, Any]],
+        runtime: Any | None,
+        titles: Iterable[object] = (),
     ) -> dict[str | None, SourceMeta]:
         """Build per-season metadata from TVDB episodes."""
         counts: dict[int, int] = {}
@@ -214,6 +217,7 @@ class BaseTvdbSource(CachedMetadataSource):
                 has_finale[season_number] = True
 
         normalized_runtime = self._parse_runtime(runtime)
+        normalized_titles = normalize_titles(titles)
         recent_cutoff = datetime.now(UTC) - timedelta(days=self.RECENT_AIR_DAYS)
 
         scope_meta: dict[str | None, SourceMeta] = {}
@@ -232,6 +236,7 @@ class BaseTvdbSource(CachedMetadataSource):
                 episodes=episode_total,
                 start_year=air_years.get(number),
                 duration=normalized_runtime,
+                titles=normalized_titles,
             )
 
         return scope_meta
@@ -305,7 +310,12 @@ class BaseTvdbSource(CachedMetadataSource):
             return text
         return None
 
-    def _build_movie_meta(self, runtime: Any, release_date: Any) -> SourceMeta:
+    def _build_movie_meta(
+        self,
+        runtime: Any,
+        release_date: Any,
+        titles: Iterable[object] = (),
+    ) -> SourceMeta:
         """Build a movie metadata payload from TVDB fields."""
         duration = self._parse_runtime(runtime)
         start_year = self._parse_year(release_date)
@@ -314,7 +324,23 @@ class BaseTvdbSource(CachedMetadataSource):
             episodes=1,
             duration=duration if duration and duration > 0 else None,
             start_year=start_year,
+            titles=normalize_titles(titles),
         )
+
+    @staticmethod
+    def _extract_titles(data: dict[str, Any]) -> tuple[str, ...]:
+        """Extract a best-effort list of title variants from a TVDB payload."""
+        candidates: list[str] = []
+        if isinstance(data.get("name"), str):
+            candidates.append(data["name"])
+        aliases = data.get("aliases")
+        if isinstance(aliases, list):
+            for alias in aliases:
+                if isinstance(alias, str):
+                    candidates.append(alias)
+                elif isinstance(alias, dict):
+                    candidates.extend(alias.get("name"))
+        return normalize_titles(candidates)
 
 
 class TvdbShowSource(BaseTvdbSource):
@@ -366,7 +392,11 @@ class TvdbShowSource(BaseTvdbSource):
 
         episodes = data.get("episodes") if isinstance(data, dict) else None
         runtime = data.get("averageRuntime") or data.get("runtime")
-        scope_meta = self._build_show_scope_meta(episodes or [], runtime)
+        scope_meta = self._build_show_scope_meta(
+            episodes or [],
+            runtime,
+            self._extract_titles(data),
+        )
         self._show_cache[base_id] = scope_meta
         return scope_meta, cacheable
 
@@ -413,7 +443,11 @@ class TvdbMovieSource(BaseTvdbSource):
             or data.get("year")
         )
 
-        meta = self._build_movie_meta(runtime, release_date)
+        meta = self._build_movie_meta(
+            runtime,
+            release_date,
+            self._extract_titles(data),
+        )
         return entry_id, {None: meta}, cacheable
 
     async def _request_movie_payload(

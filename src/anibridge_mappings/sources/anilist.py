@@ -6,7 +6,7 @@ from typing import Any
 
 import aiohttp
 
-from anibridge_mappings.core.meta import SourceMeta, SourceType
+from anibridge_mappings.core.meta import SourceMeta, SourceType, normalize_titles
 from anibridge_mappings.sources.base import CachedMetadataSource
 
 log = getLogger(__name__)
@@ -17,6 +17,7 @@ class AnilistSource(CachedMetadataSource):
 
     API_URL = "https://graphql.anilist.co"
     BATCH_SIZE = 50
+    CACHE_VERSION = 2
 
     provider_key = "anilist"
     cache_filename = "anilist_meta.json"
@@ -58,7 +59,7 @@ class AnilistSource(CachedMetadataSource):
 
         # How many `Page` aliases to pack into a single HTTP request.
         # Each alias corresponds to one simple batch.
-        pages_per_request = 70
+        pages_per_request = 40
 
         results: list[tuple[str, dict[str | None, SourceMeta] | None, bool]] = []
 
@@ -89,6 +90,12 @@ class AnilistSource(CachedMetadataSource):
                                 format
                                 seasonYear
                                 duration
+                                title {{
+                                    romaji
+                                    english
+                                    native
+                                }}
+                                synonyms
                             }}
                         }}
                         """
@@ -151,12 +158,24 @@ class AnilistSource(CachedMetadataSource):
                         )
 
                         if isinstance(episodes, int) and episodes > 0:
+                            title_payload = entry.get("title") or {}
+                            titles: list[object] = []
+                            if isinstance(title_payload, dict):
+                                titles.extend(
+                                    title_payload.get(key)
+                                    for key in ("romaji", "english", "native")
+                                )
+                            synonyms = entry.get("synonyms") or []
+                            if isinstance(synonyms, list):
+                                titles.extend(synonyms)
+
                             scope_meta: dict[str | None, SourceMeta] | None = {
                                 None: SourceMeta(
                                     type=media_type,
                                     episodes=episodes,
                                     start_year=entry.get("seasonYear"),
                                     duration=entry.get("duration"),
+                                    titles=normalize_titles(titles),
                                 )
                             }
                         else:

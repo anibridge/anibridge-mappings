@@ -8,7 +8,7 @@ from typing import Any
 import aiohttp
 from anibridge.utils.cache import cache
 
-from anibridge_mappings.core.meta import SourceMeta, SourceType
+from anibridge_mappings.core.meta import SourceMeta, SourceType, normalize_titles
 from anibridge_mappings.sources.base import CachedMetadataSource
 
 log = getLogger(__name__)
@@ -18,6 +18,7 @@ class TmdbSource(CachedMetadataSource):
     """Collect TMDB episode counts for IDs already present in the ID graph."""
 
     API_ROOT = "https://api.themoviedb.org/3"
+    CACHE_VERSION = 2
     provider_key = "tmdb_show"
     cache_filename = "tmdb_meta.json"
 
@@ -100,6 +101,13 @@ class TmdbSource(CachedMetadataSource):
             return None, cacheable
 
         seasons = payload.get("seasons") or []
+        titles = normalize_titles(
+            (
+                payload.get("name"),
+                payload.get("original_name"),
+                payload.get("original_title"),
+            )
+        )
         scope_meta: dict[str | None, SourceMeta] = {}
 
         for season in seasons:
@@ -119,6 +127,7 @@ class TmdbSource(CachedMetadataSource):
                 type=SourceType.TV,
                 episodes=episode_count,
                 start_year=start_year,
+                titles=titles,
             )
 
         self._show_cache[base_id] = scope_meta

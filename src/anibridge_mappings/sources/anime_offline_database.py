@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from zstandard import ZstdDecompressor
 
 from anibridge_mappings.core.graph import IdMappingGraph
-from anibridge_mappings.core.meta import MetaStore, SourceType
+from anibridge_mappings.core.meta import MetaStore, SourceType, normalize_titles
 from anibridge_mappings.sources.base import IdMappingSource, MetadataSource
 
 
@@ -99,6 +99,7 @@ class AnimeOfflineDatabaseSource(MetadataSource, IdMappingSource):
                     meta.episodes = entry.episodes
                 if entry.anime_season is not None:
                     meta.start_year = entry.anime_season.year
+                meta.titles = normalize_titles((*meta.titles, entry.title))
         return store
 
     def build_id_graph(self) -> IdMappingGraph:
