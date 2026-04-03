@@ -43,7 +43,7 @@ from anibridge_mappings.sources.shinkro import (
     ShinkroTmdbMappingSource,
     ShinkroTvdbMappingSource,
 )
-from anibridge_mappings.sources.tmdb import TmdbSource
+from anibridge_mappings.sources.tmdb import TmdbMovieSource, TmdbShowSource
 from anibridge_mappings.sources.tvdb import TvdbMovieSource, TvdbShowSource
 from anibridge_mappings.utils.mapping import (
     build_source_target_map,
@@ -444,7 +444,8 @@ def default_aggregator() -> MappingAggregator:
     anime_offline_db = AnimeOfflineDatabaseSource()
     shinkro_tmdb = ShinkroTmdbMappingSource()
     shinkro_tvdb = ShinkroTvdbMappingSource()
-    tmdb = TmdbSource()
+    tmdb_show = TmdbShowSource()
+    tmdb_movie = TmdbMovieSource()
     tvdb_movie = TvdbMovieSource()
     tvdb_show = TvdbShowSource()
     qlever_imdb_movie = QleverImdbMovieSource()
@@ -459,7 +460,8 @@ def default_aggregator() -> MappingAggregator:
             anime_aggregations,
             qlever_imdb_movie,
             qlever_imdb_show,
-            tmdb,
+            tmdb_show,
+            tmdb_movie,
             tvdb_movie,
             tvdb_show,
         ),

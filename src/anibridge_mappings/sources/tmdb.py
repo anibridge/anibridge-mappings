@@ -14,7 +14,7 @@ from anibridge_mappings.sources.base import CachedMetadataSource
 log = getLogger(__name__)
 
 
-class TmdbSource(CachedMetadataSource):
+class TmdbShowSource(CachedMetadataSource):
     """Collect TMDB episode counts for IDs already present in the ID graph."""
 
     API_ROOT = "https://api.themoviedb.org/3"
@@ -179,3 +179,103 @@ class TmdbSource(CachedMetadataSource):
         if meta is None:
             return None
         return {scope: meta}
+
+
+class TmdbMovieSource(CachedMetadataSource):
+    """Collect TMDB movie metadata for IDs already present in the ID graph."""
+
+    API_ROOT = TmdbShowSource.API_ROOT
+    CACHE_VERSION = 1
+    provider_key = "tmdb_movie"
+    cache_filename = "tmdb_movie.json"
+
+    def __init__(self, concurrency: int = 6) -> None:
+        """Initialize the TmdbMovieSource with a specific concurrency level."""
+        super().__init__(concurrency=concurrency)
+
+    async def prepare(self) -> None:
+        """Load cache data and validate TMDB authentication configuration."""
+        await super().prepare()
+        TmdbShowSource._require_token()
+
+    def _session_kwargs(self) -> dict[str, Any]:
+        """Return aiohttp session settings for TMDB requests."""
+        token = TmdbShowSource._require_token()
+        return {
+            "headers": {
+                "Accept": "application/json",
+                "Authorization": f"Bearer {token}",
+            }
+        }
+
+    async def _fetch_entry(
+        self,
+        session: aiohttp.ClientSession,
+        entry_id: str,
+        scope: str | None,
+    ) -> tuple[str, dict[str | None, SourceMeta] | None, bool]:
+        """Fetch TMDB metadata for a single movie entry."""
+        del scope
+        payload, cacheable = await self._request_movie_payload(session, entry_id)
+        if payload is None:
+            return entry_id, None, cacheable
+
+        runtime = payload.get("runtime")
+        release_date = payload.get("release_date") or payload.get("releaseDate")
+        start_year = (
+            int(release_date[:4])
+            if isinstance(release_date, str) and release_date[:4].isdigit()
+            else None
+        )
+        duration = runtime if isinstance(runtime, int) and runtime > 0 else None
+        titles = normalize_titles(
+            (
+                payload.get("title"),
+                payload.get("original_title"),
+            )
+        )
+        return (
+            entry_id,
+            {
+                None: SourceMeta(
+                    type=SourceType.MOVIE,
+                    episodes=1,
+                    duration=duration,
+                    start_year=start_year,
+                    titles=titles,
+                )
+            },
+            cacheable,
+        )
+
+    async def _request_movie_payload(
+        self,
+        session: aiohttp.ClientSession,
+        base_id: str,
+    ) -> tuple[dict[str, Any] | None, bool]:
+        """Request a TMDB movie payload with rate-limit handling."""
+        url = f"{self.API_ROOT}/movie/{base_id}"
+        while True:
+            async with session.get(url) as response:
+                if response.status == 429:
+                    retry = int(response.headers.get("Retry-After", "2"))
+                    log.warning(
+                        "TMDB rate limit hit for movie %s; sleeping %s",
+                        base_id,
+                        retry,
+                    )
+                    await asyncio.sleep(retry + 1)
+                    continue
+
+                if response.status == 404:
+                    log.warning("TMDB movie %s not found", base_id)
+                    return None, True
+
+                try:
+                    response.raise_for_status()
+                except aiohttp.ClientResponseError as exc:
+                    log.error("TMDB movie request failed for %s: %s", base_id, exc)
+                    return None, False
+
+                payload: dict[str, Any] = await response.json()
+                return payload, True

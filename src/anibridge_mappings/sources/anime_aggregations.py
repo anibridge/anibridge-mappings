@@ -76,10 +76,17 @@ class AnimeAggregationsSource(IdMappingSource, MetadataSource):
                     anidb_id,
                     scope=self.DEFAULT_SCOPE,
                 )
-                meta.episodes = len(main_episodes)
                 if meta_type is not None:
                     meta.type = meta_type
-                if duration is not None:
+
+                # AnimeAggregations often models movies as multiple internal parts
+                # with per-part lengths, which is too granular for our schema.
+                if meta_type == SourceType.MOVIE:
+                    meta.episodes = 1
+                else:
+                    meta.episodes = len(main_episodes)
+
+                if duration is not None and meta_type != SourceType.MOVIE:
                     meta.duration = duration
                 if start_year is not None:
                     meta.start_year = start_year
