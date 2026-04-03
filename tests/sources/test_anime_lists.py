@@ -8,6 +8,7 @@ XML = """
   <anime anidbid="1" tvdbid="100" defaulttvdbseason="1" tmdbtv="200" tmdbseason="1" tmdbid="300" imdbid="tt1234567">
     <mapping-list>
       <mapping anidbseason="1" tvdbseason="1">1-1;2-2</mapping>
+        <mapping anidbseason="1" tvdbseason="2" tmdbseason="2">3-1;4-2</mapping>
     </mapping-list>
   </anime>
 </root>
@@ -40,7 +41,9 @@ def test_anime_lists_build_id_graph_and_episode_graph() -> None:
     id_graph = source.build_id_graph()
 
     assert id_graph.has_edge(("anidb", "1", "R"), ("tvdb_show", "100", "s1"))
+    assert id_graph.has_edge(("anidb", "1", "R"), ("tvdb_show", "100", "s2"))
     assert id_graph.has_edge(("anidb", "1", "R"), ("tmdb_show", "200", "s1"))
+    assert id_graph.has_edge(("anidb", "1", "R"), ("tmdb_show", "200", "s2"))
     assert id_graph.has_edge(("anidb", "1", "R"), ("imdb_movie", "tt1234567", None))
 
     store = MetaStore()

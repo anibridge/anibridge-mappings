@@ -76,6 +76,7 @@ class AnimeListsSource(IdMappingSource, EpisodeMappingSource):
             )
             tmdb_raw = (anime_el.get("tmdbtv") or "").strip()
             tmdb_show = tmdb_raw if tmdb_raw.isdigit() else None
+            tmdb_scopes = {tmdb_scope}
 
             tvdb_scope = (
                 self._scope_from_attr(anime_el.get("defaulttvdbseason"))
@@ -83,6 +84,20 @@ class AnimeListsSource(IdMappingSource, EpisodeMappingSource):
             )
             tvdb_raw = (anime_el.get("tvdbid") or "").strip()
             tvdb = tvdb_raw if tvdb_raw.isdigit() else None
+            tvdb_scopes = {tvdb_scope}
+
+            for mapping_el in anime_el.findall("mapping-list/mapping"):
+                mapped_tvdb_scope = (
+                    self._scope_from_attr(mapping_el.get("tvdbseason")) or tvdb_scope
+                )
+                tvdb_scopes.add(mapped_tvdb_scope)
+
+                tmdb_season_attr = mapping_el.get("tmdbseason")
+                if tmdb_season_attr is not None:
+                    mapped_tmdb_scope = (
+                        self._scope_from_attr(tmdb_season_attr) or tmdb_scope
+                    )
+                    tmdb_scopes.add(mapped_tmdb_scope)
 
             if imdb_ids:  # Anime-Lists only supplies IMDB IDs for movies
                 nodes.extend(("imdb_movie", imdb, None) for imdb in imdb_ids)
@@ -90,9 +105,13 @@ class AnimeListsSource(IdMappingSource, EpisodeMappingSource):
             for tmdb_movie in tmdb_movie_ids:
                 nodes.append(("tmdb_movie", tmdb_movie, None))
             if tmdb_show:
-                nodes.append(("tmdb_show", tmdb_show, tmdb_scope))
+                nodes.extend(
+                    ("tmdb_show", tmdb_show, scope) for scope in sorted(tmdb_scopes)
+                )
             if tvdb:
-                nodes.append(("tvdb_show", tvdb, tvdb_scope))
+                nodes.extend(
+                    ("tvdb_show", tvdb, scope) for scope in sorted(tvdb_scopes)
+                )
 
             graph.add_equivalence_class(nodes)
 
