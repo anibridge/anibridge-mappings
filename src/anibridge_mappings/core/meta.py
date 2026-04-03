@@ -1,6 +1,6 @@
 """Metadata structures and store definitions."""
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
@@ -21,6 +21,7 @@ class SourceMeta:
     episodes: int | None = None
     duration: int | None = None  # in seconds
     start_year: int | None = None
+    titles: tuple[str, ...] = ()
 
     def to_dict(self, include_none: bool = True) -> dict[str, Any]:
         """Serialize the metadata into a JSON-friendly dictionary.
@@ -36,6 +37,7 @@ class SourceMeta:
             "episodes": self.episodes,
             "duration": self.duration,
             "start_year": self.start_year,
+            "titles": list(self.titles),
         }
         if include_none:
             return payload
@@ -58,7 +60,38 @@ class SourceMeta:
             episodes=payload.get("episodes"),
             duration=payload.get("duration"),
             start_year=payload.get("start_year"),
+            titles=normalize_titles(payload.get("titles") or ()),
         )
+
+    def merged_with(self, other: SourceMeta) -> SourceMeta:
+        """Merge `other` into `self`, with `other` values taking precedence."""
+        return SourceMeta(
+            type=other.type if other.type is not None else self.type,
+            episodes=other.episodes if other.episodes is not None else self.episodes,
+            duration=other.duration if other.duration is not None else self.duration,
+            start_year=(
+                other.start_year if other.start_year is not None else self.start_year
+            ),
+            titles=normalize_titles((*self.titles, *other.titles)),
+        )
+
+
+def normalize_titles(values: Iterable[object]) -> tuple[str, ...]:
+    """Normalize title-like values into a deduplicated tuple."""
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        if not isinstance(value, str):
+            continue
+        text = " ".join(value.split()).strip()
+        if not text:
+            continue
+        marker = text.casefold()
+        if marker in seen:
+            continue
+        seen.add(marker)
+        normalized.append(text)
+    return tuple(normalized)
 
 
 class MetaStore:
@@ -134,7 +167,7 @@ class MetaStore:
         provider: str,
         entry_id: str,
         scope: str | None = None,
-        **values: int | SourceType | None,
+        **values: Any,
     ) -> SourceMeta:
         """Update selected fields for an entry and return the stored object.
 
@@ -167,7 +200,9 @@ class MetaStore:
         Args:
             other (MetaStore): Store whose entries should merge into this one.
         """
-        self._store.update(other._store)
+        for key, meta in other._store.items():
+            existing = self._store.get(key)
+            self._store[key] = meta if existing is None else existing.merged_with(meta)
 
     def __len__(self) -> int:
         """Return the number of stored metadata entries.
