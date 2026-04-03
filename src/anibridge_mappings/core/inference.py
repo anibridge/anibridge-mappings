@@ -11,7 +11,7 @@ from anibridge_mappings.core.meta import MetaStore, SourceMeta
 
 log = getLogger(__name__)
 
-_TITLE_TOKEN_RE = re.compile(r"[a-z0-9]+")
+_TITLE_TOKEN_RE = re.compile(r"\w+", re.UNICODE)
 _TITLE_MATCH_THRESHOLD = 0.9
 
 
@@ -174,7 +174,9 @@ def _title_score(left: SourceMeta, right: SourceMeta) -> float:
 
 def _normalize_title(title: str) -> str:
     """Normalize a title into a tokenized lowercase string."""
-    return " ".join(_TITLE_TOKEN_RE.findall(title.casefold()))
+    return " ".join(
+        token.replace("_", "") for token in _TITLE_TOKEN_RE.findall(title.casefold())
+    ).strip()
 
 
 def _year_match(left: SourceMeta, right: SourceMeta) -> bool:
