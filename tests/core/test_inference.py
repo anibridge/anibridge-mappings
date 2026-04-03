@@ -13,6 +13,62 @@ from anibridge_mappings.core.inference import (
 from anibridge_mappings.core.meta import MetaStore, SourceMeta, SourceType
 
 
+def test_inference_skips_when_provider_has_many_same_length_candidates() -> None:
+    id_graph = IdMappingGraph()
+    special = ("anidb", "2036", "S")
+    main = ("anidb", "69", "R")
+    a = ("anilist", "1238", None)
+    b = ("anilist", "2490", None)
+    id_graph.add_equivalence_class([special, main, a, b])
+
+    store = MetaStore()
+    store.set(
+        special[0],
+        special[1],
+        SourceMeta(type=SourceType.TV, episodes=1),
+        special[2],
+    )
+    store.set(
+        main[0],
+        main[1],
+        SourceMeta(
+            type=SourceType.TV,
+            episodes=100,
+            start_year=1999,
+            titles=("One Piece",),
+        ),
+        main[2],
+    )
+    store.set(
+        a[0],
+        a[1],
+        SourceMeta(
+            type=SourceType.TV,
+            episodes=1,
+            duration=45,
+            start_year=2003,
+            titles=("One Piece Special 3",),
+        ),
+        a[2],
+    )
+    store.set(
+        b[0],
+        b[1],
+        SourceMeta(
+            type=SourceType.TV,
+            episodes=1,
+            duration=5,
+            start_year=2004,
+            titles=("One Piece: Pirate Baseball King",),
+        ),
+        b[2],
+    )
+
+    episode_graph = infer_episode_mappings(store, id_graph)
+
+    assert episode_graph.node_count() == 0
+
+
 def test_infer_episode_mappings_links_matching_component_nodes() -> None:
     id_graph = IdMappingGraph()
     a = ("anidb", "1", "R")

@@ -65,14 +65,18 @@ def _select_inference_pairs(
     inferred_pairs: list[tuple[IdNode, IdNode, str]] = []
     for left_provider, right_provider in combinations(sorted(by_provider), 2):
         pair_scores: list[tuple[float, IdNode, IdNode, str]] = []
-        for meta_left, node_left in by_provider[left_provider]:
-            for meta_right, node_right in by_provider[right_provider]:
+        left_candidates = by_provider[left_provider]
+        right_candidates = by_provider[right_provider]
+        for meta_left, node_left in left_candidates:
+            for meta_right, node_right in right_candidates:
                 score = _pair_match_score(
                     meta_left,
                     node_left,
                     meta_right,
                     node_right,
                     meta_by_node,
+                    left_candidates,
+                    right_candidates,
                 )
                 if score is None:
                     continue
@@ -114,6 +118,8 @@ def _pair_match_score(
     right_meta: SourceMeta,
     right_node: IdNode,
     meta_by_node: dict[IdNode, SourceMeta],
+    left_provider_candidates: list[tuple[SourceMeta, IdNode]],
+    right_provider_candidates: list[tuple[SourceMeta, IdNode]],
 ) -> float | None:
     """Score a candidate pair using strict matching first, then narrow fallback."""
     score = _match_score(left_meta, right_meta)
@@ -121,6 +127,12 @@ def _pair_match_score(
         return score
 
     if _is_metadata_poor(left_node, left_meta):
+        if not _has_unique_fallback_candidate(
+            left_meta,
+            right_node,
+            right_provider_candidates,
+        ):
+            return None
         return _weak_special_match_score(
             left_meta,
             left_node,
@@ -128,6 +140,12 @@ def _pair_match_score(
             meta_by_node,
         )
     if _is_metadata_poor(right_node, right_meta):
+        if not _has_unique_fallback_candidate(
+            right_meta,
+            left_node,
+            left_provider_candidates,
+        ):
+            return None
         return _weak_special_match_score(
             right_meta,
             right_node,
@@ -177,6 +195,26 @@ def _is_metadata_poor(node: IdNode, meta: SourceMeta) -> bool:
         and not meta.titles
         and meta.start_year is None
     )
+
+
+def _has_unique_fallback_candidate(
+    special_meta: SourceMeta,
+    candidate_node: IdNode,
+    provider_candidates: list[tuple[SourceMeta, IdNode]],
+) -> bool:
+    """Require fallback targets to be unique within their provider in the component."""
+    matches = [
+        node
+        for meta, node in provider_candidates
+        if node == candidate_node
+        or (
+            meta.type == special_meta.type
+            and meta.episodes == special_meta.episodes
+            and meta.titles
+            and meta.start_year is not None
+        )
+    ]
+    return len(matches) == 1 and matches[0] == candidate_node
 
 
 def _weak_special_match_score(
