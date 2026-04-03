@@ -12,7 +12,12 @@ from typing import Any, ClassVar
 import aiohttp
 
 from anibridge_mappings.core.graph import IdMappingGraph
-from anibridge_mappings.core.meta import MetaStore, SourceMeta, SourceType
+from anibridge_mappings.core.meta import (
+    MetaStore,
+    SourceMeta,
+    SourceType,
+    normalize_titles,
+)
 from anibridge_mappings.sources.base import IdMappingSource, MetadataSource
 from anibridge_mappings.utils.provider_ids import normalize_imdb_id
 
@@ -145,12 +150,15 @@ class BaseQleverImdbSource(MetadataSource):
         query = f"""
         PREFIX imdb: <https://www.imdb.com/>
 
-        SELECT ?id ?type ?startYear ?runtimeMinutes ?episodeCount WHERE {{
+        SELECT ?id ?type ?startYear ?runtimeMinutes ?episodeCount ?primaryTitle
+            ?originalTitle WHERE {{
             {values_clause}
             ?title imdb:id ?id ;
                    imdb:type ?type .
             OPTIONAL {{ ?title imdb:startYear ?startYear . }}
             OPTIONAL {{ ?title imdb:runtimeMinutes ?runtimeMinutes . }}
+            OPTIONAL {{ ?title imdb:primaryTitle ?primaryTitle . }}
+            OPTIONAL {{ ?title imdb:originalTitle ?originalTitle . }}
             OPTIONAL {{
                 SELECT ?id (COUNT(?episode) AS ?episodeCount) WHERE {{
                     {values_clause}
@@ -198,6 +206,12 @@ class BaseQleverImdbSource(MetadataSource):
                     episodes=episodes,
                     duration=duration,
                     start_year=start_year,
+                    titles=normalize_titles(
+                        [
+                            self._extract_str(binding, "primaryTitle"),
+                            self._extract_str(binding, "originalTitle"),
+                        ]
+                    ),
                 )
             else:
                 meta = SourceMeta(
@@ -205,6 +219,12 @@ class BaseQleverImdbSource(MetadataSource):
                     episodes=1,
                     duration=duration,
                     start_year=start_year,
+                    titles=normalize_titles(
+                        [
+                            self._extract_str(binding, "primaryTitle"),
+                            self._extract_str(binding, "originalTitle"),
+                        ]
+                    ),
                 )
 
             for original_id in normalized_map.get(entry_id, []):
