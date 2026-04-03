@@ -165,3 +165,104 @@ def test_inference_skips_ambiguous_provider_pair_matches() -> None:
     store.set(c[0], c[1], shared, c[2])
 
     assert infer_episode_mappings(store, id_graph).node_count() == 0
+
+
+def test_inference_falls_back_for_metadata_poor_anidb_specials() -> None:
+    id_graph = IdMappingGraph()
+    special = ("anidb", "33", "S")
+    anilist = ("anilist", "7579", None)
+    mal = ("mal", "7579", None)
+    id_graph.add_equivalence_class([special, anilist, mal])
+
+    store = MetaStore()
+    store.set(
+        special[0],
+        special[1],
+        SourceMeta(type=SourceType.TV, episodes=1),
+        special[2],
+    )
+    candidate = SourceMeta(
+        type=SourceType.TV,
+        episodes=1,
+        duration=25,
+        start_year=2002,
+        titles=("Happy Lesson Special",),
+    )
+    store.set(anilist[0], anilist[1], candidate, anilist[2])
+    store.set(mal[0], mal[1], candidate, mal[2])
+
+    episode_graph = infer_episode_mappings(store, id_graph)
+
+    assert episode_graph.has_edge(
+        ("anidb", "33", "S", "1"), ("anilist", "7579", None, "1")
+    )
+    assert episode_graph.has_edge(("anidb", "33", "S", "1"), ("mal", "7579", None, "1"))
+
+
+def test_inference_uses_sibling_series_metadata_to_break_special_ties() -> None:
+    id_graph = IdMappingGraph()
+    special_2002 = ("anidb", "33", "S")
+    main_2002 = ("anidb", "33", "R")
+    special_2003 = ("anidb", "835", "S")
+    main_2003 = ("anidb", "835", "R")
+    anilist = ("anilist", "7579", None)
+    id_graph.add_equivalence_class(
+        [special_2002, main_2002, special_2003, main_2003, anilist]
+    )
+
+    store = MetaStore()
+    store.set(
+        special_2002[0],
+        special_2002[1],
+        SourceMeta(type=SourceType.TV, episodes=1),
+        special_2002[2],
+    )
+    store.set(
+        special_2003[0],
+        special_2003[1],
+        SourceMeta(type=SourceType.TV, episodes=1),
+        special_2003[2],
+    )
+    store.set(
+        main_2002[0],
+        main_2002[1],
+        SourceMeta(
+            type=SourceType.TV,
+            episodes=13,
+            start_year=2002,
+            titles=("Happy Lesson (TV)",),
+        ),
+        main_2002[2],
+    )
+    store.set(
+        main_2003[0],
+        main_2003[1],
+        SourceMeta(
+            type=SourceType.TV,
+            episodes=13,
+            start_year=2003,
+            titles=("Happy Lesson Advance",),
+        ),
+        main_2003[2],
+    )
+    store.set(
+        anilist[0],
+        anilist[1],
+        SourceMeta(
+            type=SourceType.TV,
+            episodes=1,
+            duration=25,
+            start_year=2002,
+            titles=("Happy Lesson: Hokahoka Kanna to Futari Kiri",),
+        ),
+        anilist[2],
+    )
+
+    episode_graph = infer_episode_mappings(store, id_graph)
+
+    assert episode_graph.has_edge(
+        ("anidb", "33", "S", "1"), ("anilist", "7579", None, "1")
+    )
+    assert not episode_graph.has_edge(
+        ("anidb", "835", "S", "1"), ("anilist", "7579", None, "1")
+    )

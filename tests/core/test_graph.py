@@ -70,6 +70,24 @@ def test_episode_graph_transitive_edges_and_component_grouping() -> None:
     assert set(grouped) == {"anidb", "mal", "anilist"}
 
 
+def test_episode_graph_transitive_edges_skip_same_provider_links() -> None:
+    graph = EpisodeMappingGraph()
+
+    n1 = ("anidb", "90", "S", "4")
+    n2 = ("tvdb_show", "70863", "s3", "33")
+    n3 = ("anidb", "73", "S", "1")
+
+    graph.add_edge(n1, n2)
+    graph.add_edge(n2, n3)
+
+    added = graph.add_transitive_edges(
+        provenance=ProvenanceContext(stage="transitive", actor="engine")
+    )
+
+    assert added == 0
+    assert not graph.has_edge(n1, n3)
+
+
 def test_episode_graph_add_graph_merges_edges() -> None:
     left = ("anidb", "1", "R", "1")
     right = ("mal", "2", None, "1")

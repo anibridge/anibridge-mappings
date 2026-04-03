@@ -57,6 +57,7 @@ def _select_inference_pairs(
     candidates: list[tuple[SourceMeta, IdNode]],
 ) -> list[tuple[IdNode, IdNode, str]]:
     """Return cross-provider candidates for inference."""
+    meta_by_node = {node: meta for meta, node in candidates}
     by_provider: dict[str, list[tuple[SourceMeta, IdNode]]] = {}
     for meta, node in candidates:
         by_provider.setdefault(node[0], []).append((meta, node))
@@ -66,7 +67,13 @@ def _select_inference_pairs(
         pair_scores: list[tuple[float, IdNode, IdNode, str]] = []
         for meta_left, node_left in by_provider[left_provider]:
             for meta_right, node_right in by_provider[right_provider]:
-                score = _match_score(meta_left, meta_right)
+                score = _pair_match_score(
+                    meta_left,
+                    node_left,
+                    meta_right,
+                    node_right,
+                    meta_by_node,
+                )
                 if score is None:
                     continue
 
@@ -101,6 +108,36 @@ def _select_inference_pairs(
     return inferred_pairs
 
 
+def _pair_match_score(
+    left_meta: SourceMeta,
+    left_node: IdNode,
+    right_meta: SourceMeta,
+    right_node: IdNode,
+    meta_by_node: dict[IdNode, SourceMeta],
+) -> float | None:
+    """Score a candidate pair using strict matching first, then narrow fallback."""
+    score = _match_score(left_meta, right_meta)
+    if score is not None:
+        return score
+
+    if _is_metadata_poor(left_node, left_meta):
+        return _weak_special_match_score(
+            left_meta,
+            left_node,
+            right_meta,
+            meta_by_node,
+        )
+    if _is_metadata_poor(right_node, right_meta):
+        return _weak_special_match_score(
+            right_meta,
+            right_node,
+            left_meta,
+            meta_by_node,
+        )
+
+    return None
+
+
 def _unique_best_matches(
     pair_scores: list[tuple[float, IdNode, IdNode, str]],
     *,
@@ -123,6 +160,60 @@ def _unique_best_matches(
         for key_node, (_score, other_node) in best.items()
         if other_node is not None
     }
+
+
+def _is_metadata_poor(node: IdNode, meta: SourceMeta) -> bool:
+    """Return True for with weak metadata.
+
+    Currently, this is used to allow more linient matching for certain AniDB specials.
+    """
+    provider, _entry_id, scope = node
+    return (
+        provider == "anidb"
+        and scope not in (None, "R")
+        and meta.type is not None
+        and meta.episodes is not None
+        and meta.episodes > 0
+        and not meta.titles
+        and meta.start_year is None
+    )
+
+
+def _weak_special_match_score(
+    special_meta: SourceMeta,
+    special_node: IdNode,
+    candidate_meta: SourceMeta,
+    meta_by_node: dict[IdNode, SourceMeta],
+) -> float | None:
+    """Allow a weak match for weak metadata if sibling metadata aligns."""
+    if special_meta.type != candidate_meta.type:
+        return None
+    if special_meta.episodes != candidate_meta.episodes:
+        return None
+    if not candidate_meta.titles or candidate_meta.start_year is None:
+        return None
+
+    score = 0.1
+    sibling_meta = meta_by_node.get((special_node[0], special_node[1], "R"))
+    if sibling_meta is None:
+        return score
+
+    if sibling_meta.titles:
+        sibling_title_score = _title_score(sibling_meta, candidate_meta)
+        if sibling_title_score <= 0:
+            return None
+        score += sibling_title_score * 0.5
+
+    if sibling_meta.start_year and candidate_meta.start_year:
+        year_delta = abs(sibling_meta.start_year - candidate_meta.start_year)
+        if year_delta == 0:
+            score += 0.2
+        elif year_delta == 1:
+            score += 0.05
+        else:
+            return None
+
+    return score
 
 
 def _meta_match(left: SourceMeta, right: SourceMeta) -> bool:
