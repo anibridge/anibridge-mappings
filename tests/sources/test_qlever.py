@@ -33,12 +33,15 @@ def test_qlever_parse_bindings_for_movie_and_show() -> None:
             "type": {"value": "movie"},
             "startYear": {"value": "2020"},
             "runtimeMinutes": {"value": "100"},
+            "primaryTitle": {"value": "Movie Title"},
+            "originalTitle": {"value": "Original Movie Title"},
         },
         {
             "id": {"value": "tt0000456"},
             "type": {"value": "tvSeries"},
             "episodeCount": {"value": "12"},
             "runtimeMinutes": {"value": "24"},
+            "primaryTitle": {"value": "Show Title"},
         },
     ]
 
@@ -46,7 +49,9 @@ def test_qlever_parse_bindings_for_movie_and_show() -> None:
     show_meta = show._parse_bindings(bindings, {"tt0000456": ["tt456"]})
 
     assert movie_meta["tt123"].episodes == 1
+    assert movie_meta["tt123"].titles == ("Movie Title", "Original Movie Title")
     assert show_meta["tt456"].episodes == 12
+    assert show_meta["tt456"].titles == ("Show Title",)
 
 
 def test_qlever_wikidata_build_id_graph_and_prop_extraction() -> None:

@@ -3,6 +3,7 @@ from anibridge_mappings.core.inference import (
     _duration_match,
     _episode_range,
     _meta_match,
+    _normalize_title,
     _relative_delta,
     _title_match,
     _title_score,
@@ -88,11 +89,32 @@ def test_inference_matching_helpers() -> None:
     assert _duration_match(tv_a, tv_b)
     assert _duration_match(movie_a, movie_b)
     assert _meta_match(tv_a, tv_b)
+    assert _normalize_title("千と千尋の神隠し") == "千と千尋の神隠し"
 
     assert _relative_delta(10, 12) == 2 / 12
     assert _episode_range(SourceMeta(episodes=1)) == "1"
     assert _episode_range(SourceMeta(episodes=5)) == "1-5"
     assert _episode_range(SourceMeta(episodes=0)) is None
+
+
+def test_inference_matches_native_script_titles() -> None:
+    left = SourceMeta(
+        type=SourceType.MOVIE,
+        episodes=1,
+        start_year=2001,
+        duration=124,
+        titles=("千と千尋の神隠し",),
+    )
+    right = SourceMeta(
+        type=SourceType.MOVIE,
+        episodes=1,
+        start_year=2001,
+        duration=125,
+        titles=("千と千尋の神隠し",),
+    )
+
+    assert _title_match(left, right)
+    assert _meta_match(left, right)
 
 
 def test_inference_requires_titles_and_exact_year_alignment() -> None:

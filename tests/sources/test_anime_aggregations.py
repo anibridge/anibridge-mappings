@@ -45,3 +45,33 @@ def test_anime_aggregations_build_id_graph_and_metadata() -> None:
     specials = store.peek("anidb", "1", "S")
     assert regular is not None and regular.episodes == 2 and regular.start_year == 2019
     assert specials is not None and specials.episodes == 1
+
+
+def test_anime_aggregations_normalizes_movie_metadata_for_inference() -> None:
+    source = AnimeAggregationsSource()
+    source._entries = [
+        {
+            "anime_id": 7,
+            "type": "MOVIE",
+            "resources": {},
+            "episodes": {
+                "REGULAR": [
+                    {"length": 45, "air_date": "1997-07-12"},
+                    {"length": 45, "air_date": "1997-07-12"},
+                    {"length": 44, "air_date": "1997-07-12"},
+                ]
+            },
+            "start_date": "1997-07-12",
+        }
+    ]
+
+    import asyncio
+
+    store = asyncio.run(source.collect_metadata(None))  # type: ignore[arg-type]
+    regular = store.peek("anidb", "7", "R")
+
+    assert regular is not None
+    assert regular.type == "movie" or regular.type.value == "movie"
+    assert regular.episodes == 1
+    assert regular.duration is None
+    assert regular.start_year == 1997
