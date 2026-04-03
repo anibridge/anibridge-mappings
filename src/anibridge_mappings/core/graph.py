@@ -457,6 +457,8 @@ class EpisodeMappingGraph(_BaseGraph[EpisodeNode]):
             nodes = sorted(component, key=self._node_key)
             for idx, source in enumerate(nodes):
                 for target in nodes[idx + 1 :]:
+                    if source[0] == target[0]:
+                        continue
                     if target in self._adj.get(source, set()):
                         continue
                     if any(c in (",", "|") for c in source[3]) or any(
