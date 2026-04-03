@@ -256,8 +256,7 @@ class CachedMetadataSource(MetadataSource):
                         )
                         for entry_id, scopes in self._cache.items()
                     },
-                },
-                option=orjson.OPT_INDENT_2 | orjson.OPT_APPEND_NEWLINE,
+                }
             )
         )
 
