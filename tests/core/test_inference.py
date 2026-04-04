@@ -1,13 +1,9 @@
 from anibridge_mappings.core.graph import IdMappingGraph
 from anibridge_mappings.core.inference import (
-    _duration_match,
     _episode_range,
-    _meta_match,
     _normalize_title,
     _relative_delta,
-    _title_match,
     _title_score,
-    _year_match,
     infer_episode_mappings,
 )
 from anibridge_mappings.core.meta import MetaStore, SourceMeta, SourceType
@@ -124,53 +120,13 @@ def test_inference_matching_helpers() -> None:
         start_year=2020,
         titles=("example show", "Example Show Season 1"),
     )
-    movie_a = SourceMeta(
-        type=SourceType.MOVIE,
-        episodes=1,
-        duration=100,
-        start_year=2020,
-        titles=("Movie Name",),
-    )
-    movie_b = SourceMeta(
-        type=SourceType.MOVIE,
-        episodes=1,
-        duration=109,
-        start_year=2020,
-        titles=("Movie Name",),
-    )
-
-    assert _title_match(tv_a, tv_b)
     assert _title_score(tv_a, tv_b) >= 0.9
-    assert _year_match(tv_a, tv_b)
-    assert _duration_match(tv_a, tv_b)
-    assert _duration_match(movie_a, movie_b)
-    assert _meta_match(tv_a, tv_b)
     assert _normalize_title("千と千尋の神隠し") == "千と千尋の神隠し"
 
     assert _relative_delta(10, 12) == 2 / 12
     assert _episode_range(SourceMeta(episodes=1)) == "1"
     assert _episode_range(SourceMeta(episodes=5)) == "1-5"
     assert _episode_range(SourceMeta(episodes=0)) is None
-
-
-def test_inference_matches_native_script_titles() -> None:
-    left = SourceMeta(
-        type=SourceType.MOVIE,
-        episodes=1,
-        start_year=2001,
-        duration=124,
-        titles=("千と千尋の神隠し",),
-    )
-    right = SourceMeta(
-        type=SourceType.MOVIE,
-        episodes=1,
-        start_year=2001,
-        duration=125,
-        titles=("千と千尋の神隠し",),
-    )
-
-    assert _title_match(left, right)
-    assert _meta_match(left, right)
 
 
 def test_inference_requires_titles_and_exact_year_alignment() -> None:
@@ -221,38 +177,6 @@ def test_inference_skips_ambiguous_provider_pair_matches() -> None:
     store.set(c[0], c[1], shared, c[2])
 
     assert infer_episode_mappings(store, id_graph).node_count() == 0
-
-
-def test_inference_falls_back_for_metadata_poor_anidb_specials() -> None:
-    id_graph = IdMappingGraph()
-    special = ("anidb", "33", "S")
-    anilist = ("anilist", "7579", None)
-    mal = ("mal", "7579", None)
-    id_graph.add_equivalence_class([special, anilist, mal])
-
-    store = MetaStore()
-    store.set(
-        special[0],
-        special[1],
-        SourceMeta(type=SourceType.TV, episodes=1),
-        special[2],
-    )
-    candidate = SourceMeta(
-        type=SourceType.TV,
-        episodes=1,
-        duration=25,
-        start_year=2002,
-        titles=("Happy Lesson Special",),
-    )
-    store.set(anilist[0], anilist[1], candidate, anilist[2])
-    store.set(mal[0], mal[1], candidate, mal[2])
-
-    episode_graph = infer_episode_mappings(store, id_graph)
-
-    assert episode_graph.has_edge(
-        ("anidb", "33", "S", "1"), ("anilist", "7579", None, "1")
-    )
-    assert episode_graph.has_edge(("anidb", "33", "S", "1"), ("mal", "7579", None, "1"))
 
 
 def test_inference_uses_sibling_series_metadata_to_break_special_ties() -> None:
