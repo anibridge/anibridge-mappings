@@ -191,26 +191,7 @@ class MappingRangeValidator(MappingValidator):
                         target_range,
                         spec,
                     )
-                    _validate_type_alignment(
-                        self,
-                        issues,
-                        source_descriptor,
-                        target_descriptor,
-                        source_range,
-                        target_range,
-                        source_meta,
-                        meta,
-                    )
-                    _validate_target_limit(
-                        self,
-                        issues,
-                        source_descriptor,
-                        target_descriptor,
-                        source_range,
-                        spec,
-                        episode_limit,
-                    )
-                    _validate_units(
+                    _validate_edge_compatibility(
                         self,
                         issues,
                         source_descriptor,
@@ -219,6 +200,9 @@ class MappingRangeValidator(MappingValidator):
                         source_range,
                         target_range,
                         spec,
+                        source_meta,
+                        meta,
+                        episode_limit,
                     )
 
                     for segment in spec.segments:
@@ -357,75 +341,7 @@ def _validate_target_spec_shape(
             previous = current
 
 
-def _validate_target_limit(
-    validator: MappingRangeValidator,
-    issues: list[ValidationIssue],
-    source_descriptor: str,
-    target_descriptor: str,
-    source_range: str,
-    spec: TargetSpec,
-    episode_limit: int | None,
-) -> None:
-    """Ensure target ranges do not exceed known episode limits."""
-    if not episode_limit or episode_limit <= 0:
-        return
-
-    for segment in spec.segments:
-        if segment.end is None:
-            if segment.start <= episode_limit:
-                continue
-        elif segment.end <= episode_limit:
-            continue
-
-        formatted = format_mapping_range(segment)
-        issues.append(
-            validator.issue(
-                "Target mapping exceeds available episodes",
-                source=source_descriptor,
-                target=target_descriptor,
-                source_range=source_range,
-                target_range=formatted,
-                details={
-                    "source_range": source_range,
-                    "target_range": formatted,
-                    "episode_limit": episode_limit,
-                },
-            )
-        )
-
-
-def _validate_type_alignment(
-    validator: MappingRangeValidator,
-    issues: list[ValidationIssue],
-    source_descriptor: str,
-    target_descriptor: str,
-    source_range: str,
-    target_range: str,
-    source_meta: SourceMeta | None,
-    target_meta: SourceMeta | None,
-) -> None:
-    """Reject mappings whose source and target media types conflict."""
-    source_type = source_meta.type if source_meta else None
-    target_type = target_meta.type if target_meta else None
-    if source_type is None or target_type is None or source_type == target_type:
-        return
-
-    issues.append(
-        validator.issue(
-            "Source and target types conflict",
-            source=source_descriptor,
-            target=target_descriptor,
-            source_range=source_range,
-            target_range=target_range,
-            details={
-                "source_type": source_type.value,
-                "target_type": target_type.value,
-            },
-        )
-    )
-
-
-def _validate_units(
+def _validate_edge_compatibility(
     validator: MappingRangeValidator,
     issues: list[ValidationIssue],
     source_descriptor: str,
@@ -434,17 +350,57 @@ def _validate_units(
     source_range: str,
     target_range: str,
     spec: TargetSpec,
+    source_meta: SourceMeta | None,
+    target_meta: SourceMeta | None,
+    episode_limit: int | None,
 ) -> None:
-    """Ensure target unit count does not exceed the mapped source units."""
+    """Validate type, target bounds, and unit-count compatibility for one edge."""
+    source_type = source_meta.type if source_meta else None
+    target_type = target_meta.type if target_meta else None
+    if (
+        source_type is not None
+        and target_type is not None
+        and source_type != target_type
+    ):
+        issues.append(
+            validator.issue(
+                "Source and target types conflict",
+                source=source_descriptor,
+                target=target_descriptor,
+                source_range=source_range,
+                target_range=target_range,
+                details={
+                    "source_type": source_type.value,
+                    "target_type": target_type.value,
+                },
+            )
+        )
+    if episode_limit and episode_limit > 0:
+        for segment in spec.segments:
+            segment_end = segment.start if segment.end is None else segment.end
+            if segment_end <= episode_limit:
+                continue
+            formatted = format_mapping_range(segment)
+            issues.append(
+                validator.issue(
+                    "Target mapping exceeds available episodes",
+                    source=source_descriptor,
+                    target=target_descriptor,
+                    source_range=source_range,
+                    target_range=formatted,
+                    details={
+                        "source_range": source_range,
+                        "target_range": formatted,
+                        "episode_limit": episode_limit,
+                    },
+                )
+            )
+
     source_units = source_segment.length
     if source_units is None:
         return
-
     units = target_units(spec)
-    if units is None:
-        return
-
-    if source_units == units:
+    if units is None or source_units == units:
         return
 
     issues.append(
