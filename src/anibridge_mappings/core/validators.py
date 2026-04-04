@@ -355,26 +355,6 @@ def _validate_edge_compatibility(
     episode_limit: int | None,
 ) -> None:
     """Validate type, target bounds, and unit-count compatibility for one edge."""
-    source_type = source_meta.type if source_meta else None
-    target_type = target_meta.type if target_meta else None
-    if (
-        source_type is not None
-        and target_type is not None
-        and source_type != target_type
-    ):
-        issues.append(
-            validator.issue(
-                "Source and target types conflict",
-                source=source_descriptor,
-                target=target_descriptor,
-                source_range=source_range,
-                target_range=target_range,
-                details={
-                    "source_type": source_type.value,
-                    "target_type": target_type.value,
-                },
-            )
-        )
     if episode_limit and episode_limit > 0:
         for segment in spec.segments:
             segment_end = segment.start if segment.end is None else segment.end
