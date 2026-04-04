@@ -12,8 +12,7 @@ from anibridge_mappings.core.meta import MetaStore, SourceMeta
 log = getLogger(__name__)
 
 _TITLE_TOKEN_RE = re.compile(r"\w+", re.UNICODE)
-_TITLE_MATCH_THRESHOLD = 0.9
-_MIN_INFERENCE_TITLE_SCORE = 0.5
+_MIN_INFERENCE_TITLE_SCORE = 0.45
 _MIN_INFERENCE_SCORE = 0.65
 
 
@@ -159,10 +158,6 @@ def _merge_context(base: SourceMeta, related: list[SourceMeta]) -> SourceMeta:
     )
 
 
-def _meta_match(left: SourceMeta, right: SourceMeta) -> bool:
-    return _match_score(left, right) is not None
-
-
 def _match_score(left: SourceMeta, right: SourceMeta) -> float | None:
     if left.type != right.type or left.episodes != right.episodes:
         return None
@@ -205,10 +200,6 @@ def _duration_score(left: SourceMeta, right: SourceMeta) -> float | None:
     return 0.0
 
 
-def _title_match(left: SourceMeta, right: SourceMeta) -> bool:
-    return _title_score(left, right) >= _TITLE_MATCH_THRESHOLD
-
-
 def _title_score(left: SourceMeta, right: SourceMeta) -> float:
     left_titles = [_normalize_title(title) for title in left.titles]
     right_titles = [_normalize_title(title) for title in right.titles]
@@ -239,20 +230,6 @@ def _normalize_title(title: str) -> str:
     return " ".join(
         token.replace("_", "") for token in _TITLE_TOKEN_RE.findall(title.casefold())
     ).strip()
-
-
-def _year_match(left: SourceMeta, right: SourceMeta) -> bool:
-    """Require exact year alignment for inferred mappings."""
-    left_year, right_year = left.start_year, right.start_year
-    return bool(left_year and right_year and left_year == right_year)
-
-
-def _duration_match(left: SourceMeta, right: SourceMeta) -> bool:
-    """Reject conflicting runtimes while allowing missing runtime data."""
-    left_duration, right_duration = left.duration, right.duration
-    if left_duration and right_duration:
-        return _relative_delta(left_duration, right_duration) <= 0.1
-    return True
 
 
 def _relative_delta(a: int, b: int) -> float:
