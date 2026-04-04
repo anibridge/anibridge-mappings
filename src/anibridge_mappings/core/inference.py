@@ -13,6 +13,8 @@ log = getLogger(__name__)
 
 _TITLE_TOKEN_RE = re.compile(r"\w+", re.UNICODE)
 _TITLE_MATCH_THRESHOLD = 0.9
+_MIN_INFERENCE_TITLE_SCORE = 0.5
+_MIN_INFERENCE_SCORE = 0.65
 
 
 def infer_episode_mappings(
@@ -44,20 +46,26 @@ def _component_meta_candidates(
     component: set[IdNode],
 ) -> list[tuple[SourceMeta, IdNode]]:
     """Find all nodes in the component with valid metadata for episode inference."""
-    candidates: list[tuple[SourceMeta, IdNode]] = []
+    raw_candidates: list[tuple[SourceMeta, IdNode]] = []
+    related_by_entry: dict[tuple[str, str], list[SourceMeta]] = {}
+
     for node in component:
         meta = meta_store.peek(*node)
         if meta is None or meta.episodes is None or meta.episodes <= 0:
             continue
-        candidates.append((meta, node))
-    return candidates
+        raw_candidates.append((meta, node))
+        related_by_entry.setdefault(node[:2], []).append(meta)
+
+    return [
+        (_merge_context(meta, related_by_entry[node[:2]]), node)
+        for meta, node in raw_candidates
+    ]
 
 
 def _select_inference_pairs(
     candidates: list[tuple[SourceMeta, IdNode]],
 ) -> list[tuple[IdNode, IdNode, str]]:
     """Return cross-provider candidates for inference."""
-    meta_by_node = {node: meta for meta, node in candidates}
     by_provider: dict[str, list[tuple[SourceMeta, IdNode]]] = {}
     for meta, node in candidates:
         by_provider.setdefault(node[0], []).append((meta, node))
@@ -65,19 +73,9 @@ def _select_inference_pairs(
     inferred_pairs: list[tuple[IdNode, IdNode, str]] = []
     for left_provider, right_provider in combinations(sorted(by_provider), 2):
         pair_scores: list[tuple[float, IdNode, IdNode, str]] = []
-        left_candidates = by_provider[left_provider]
-        right_candidates = by_provider[right_provider]
-        for meta_left, node_left in left_candidates:
-            for meta_right, node_right in right_candidates:
-                score = _pair_match_score(
-                    meta_left,
-                    node_left,
-                    meta_right,
-                    node_right,
-                    meta_by_node,
-                    left_candidates,
-                    right_candidates,
-                )
+        for meta_left, node_left in by_provider[left_provider]:
+            for meta_right, node_right in by_provider[right_provider]:
+                score = _match_score(meta_left, meta_right)
                 if score is None:
                     continue
 
@@ -112,50 +110,6 @@ def _select_inference_pairs(
     return inferred_pairs
 
 
-def _pair_match_score(
-    left_meta: SourceMeta,
-    left_node: IdNode,
-    right_meta: SourceMeta,
-    right_node: IdNode,
-    meta_by_node: dict[IdNode, SourceMeta],
-    left_provider_candidates: list[tuple[SourceMeta, IdNode]],
-    right_provider_candidates: list[tuple[SourceMeta, IdNode]],
-) -> float | None:
-    """Score a candidate pair using strict matching first, then narrow fallback."""
-    score = _match_score(left_meta, right_meta)
-    if score is not None:
-        return score
-
-    if _is_metadata_poor(left_node, left_meta):
-        if not _has_unique_fallback_candidate(
-            left_meta,
-            right_node,
-            right_provider_candidates,
-        ):
-            return None
-        return _weak_special_match_score(
-            left_meta,
-            left_node,
-            right_meta,
-            meta_by_node,
-        )
-    if _is_metadata_poor(right_node, right_meta):
-        if not _has_unique_fallback_candidate(
-            right_meta,
-            left_node,
-            left_provider_candidates,
-        ):
-            return None
-        return _weak_special_match_score(
-            right_meta,
-            right_node,
-            left_meta,
-            meta_by_node,
-        )
-
-    return None
-
-
 def _unique_best_matches(
     pair_scores: list[tuple[float, IdNode, IdNode, str]],
     *,
@@ -180,78 +134,29 @@ def _unique_best_matches(
     }
 
 
-def _is_metadata_poor(node: IdNode, meta: SourceMeta) -> bool:
-    """Return True for with weak metadata.
+def _merge_context(base: SourceMeta, related: list[SourceMeta]) -> SourceMeta:
+    """Fill missing title and year fields from same-entry related scopes."""
+    titles = base.titles
+    start_year = base.start_year
 
-    Currently, this is used to allow more linient matching for certain AniDB specials.
-    """
-    provider, _entry_id, scope = node
-    return (
-        provider == "anidb"
-        and scope not in (None, "R")
-        and meta.type is not None
-        and meta.episodes is not None
-        and meta.episodes > 0
-        and not meta.titles
-        and meta.start_year is None
+    for meta in related:
+        if not titles and meta.titles:
+            titles = meta.titles
+        if start_year is None and meta.start_year is not None:
+            start_year = meta.start_year
+        if titles and start_year is not None:
+            break
+
+    if titles == base.titles and start_year == base.start_year:
+        return base
+
+    return SourceMeta(
+        type=base.type,
+        episodes=base.episodes,
+        duration=base.duration,
+        start_year=start_year,
+        titles=titles,
     )
-
-
-def _has_unique_fallback_candidate(
-    special_meta: SourceMeta,
-    candidate_node: IdNode,
-    provider_candidates: list[tuple[SourceMeta, IdNode]],
-) -> bool:
-    """Require fallback targets to be unique within their provider in the component."""
-    matches = [
-        node
-        for meta, node in provider_candidates
-        if node == candidate_node
-        or (
-            meta.type == special_meta.type
-            and meta.episodes == special_meta.episodes
-            and meta.titles
-            and meta.start_year is not None
-        )
-    ]
-    return len(matches) == 1 and matches[0] == candidate_node
-
-
-def _weak_special_match_score(
-    special_meta: SourceMeta,
-    special_node: IdNode,
-    candidate_meta: SourceMeta,
-    meta_by_node: dict[IdNode, SourceMeta],
-) -> float | None:
-    """Allow a weak match for weak metadata if sibling metadata aligns."""
-    if special_meta.type != candidate_meta.type:
-        return None
-    if special_meta.episodes != candidate_meta.episodes:
-        return None
-    if not candidate_meta.titles or candidate_meta.start_year is None:
-        return None
-
-    score = 0.1
-    sibling_meta = meta_by_node.get((special_node[0], special_node[1], "R"))
-    if sibling_meta is None:
-        return score
-
-    if sibling_meta.titles:
-        sibling_title_score = _title_score(sibling_meta, candidate_meta)
-        if sibling_title_score <= 0:
-            return None
-        score += sibling_title_score * 0.5
-
-    if sibling_meta.start_year and candidate_meta.start_year:
-        year_delta = abs(sibling_meta.start_year - candidate_meta.start_year)
-        if year_delta == 0:
-            score += 0.2
-        elif year_delta == 1:
-            score += 0.05
-        else:
-            return None
-
-    return score
 
 
 def _meta_match(left: SourceMeta, right: SourceMeta) -> bool:
@@ -262,14 +167,42 @@ def _match_score(left: SourceMeta, right: SourceMeta) -> float | None:
     if left.type != right.type or left.episodes != right.episodes:
         return None
 
-    if not _title_match(left, right):
-        return None
-    if not _year_match(left, right):
-        return None
-    if not _duration_match(left, right):
+    title_score = _title_score(left, right)
+    if title_score < _MIN_INFERENCE_TITLE_SCORE:
         return None
 
-    return _title_score(left, right)
+    year_score = _year_score(left, right)
+    if year_score is None:
+        return None
+
+    duration_score = _duration_score(left, right)
+    if duration_score is None:
+        return None
+
+    score = title_score + year_score + duration_score
+    return score if score >= _MIN_INFERENCE_SCORE else None
+
+
+def _year_score(left: SourceMeta, right: SourceMeta) -> float | None:
+    """Return a compatibility bonus for year alignment."""
+    left_year, right_year = left.start_year, right.start_year
+    if left_year is None or right_year is None:
+        return 0.0
+
+    delta = abs(left_year - right_year)
+    if delta == 0:
+        return 0.25
+    if delta == 1:
+        return 0.1
+    return None
+
+
+def _duration_score(left: SourceMeta, right: SourceMeta) -> float | None:
+    """Return a compatibility bonus for runtime alignment."""
+    left_duration, right_duration = left.duration, right.duration
+    if left_duration and right_duration:
+        return 0.1 if _relative_delta(left_duration, right_duration) <= 0.1 else None
+    return 0.0
 
 
 def _title_match(left: SourceMeta, right: SourceMeta) -> bool:
