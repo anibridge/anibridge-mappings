@@ -7,7 +7,7 @@ from typing import Any
 from anibridge.utils.mappings import format_mapping_range
 
 from anibridge_mappings.core.graph import EpisodeMappingGraph, IdMappingGraph
-from anibridge_mappings.core.meta import MetaStore
+from anibridge_mappings.core.meta import MetaStore, SourceMeta
 from anibridge_mappings.core.range_specs import (
     TargetSpec,
     has_internal_overlap,
@@ -103,6 +103,7 @@ class MappingRangeValidator(MappingValidator):
 
         for source_scope, targets in context.source_map.items():
             source_descriptor = _descriptor(*source_scope)
+            source_meta = context.meta_store.peek(*source_scope)
             provider_windows: dict[
                 str,
                 list[tuple[int, int | None, str, str, str, str]],
@@ -189,6 +190,16 @@ class MappingRangeValidator(MappingValidator):
                         source_range,
                         target_range,
                         spec,
+                    )
+                    _validate_type_alignment(
+                        self,
+                        issues,
+                        source_descriptor,
+                        target_descriptor,
+                        source_range,
+                        target_range,
+                        source_meta,
+                        meta,
                     )
                     _validate_target_limit(
                         self,
@@ -381,6 +392,37 @@ def _validate_target_limit(
                 },
             )
         )
+
+
+def _validate_type_alignment(
+    validator: MappingRangeValidator,
+    issues: list[ValidationIssue],
+    source_descriptor: str,
+    target_descriptor: str,
+    source_range: str,
+    target_range: str,
+    source_meta: SourceMeta | None,
+    target_meta: SourceMeta | None,
+) -> None:
+    """Reject mappings whose source and target media types conflict."""
+    source_type = source_meta.type if source_meta else None
+    target_type = target_meta.type if target_meta else None
+    if source_type is None or target_type is None or source_type == target_type:
+        return
+
+    issues.append(
+        validator.issue(
+            "Source and target types conflict",
+            source=source_descriptor,
+            target=target_descriptor,
+            source_range=source_range,
+            target_range=target_range,
+            details={
+                "source_type": source_type.value,
+                "target_type": target_type.value,
+            },
+        )
+    )
 
 
 def _validate_units(
