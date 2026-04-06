@@ -36,9 +36,10 @@ def test_apply_edits_replaces_edges() -> None:
         }
     }
 
-    edited = apply_edits(graph, edits)
+    edited_scopes, edited_pairs = apply_edits(graph, edits)
 
-    assert ("anidb", "1", "R") in edited
+    assert ("anidb", "1", "R") in edited_scopes
+    assert (("anidb", "1", "R"), ("mal", "2", None)) in edited_pairs
     assert not graph.has_edge(src_old, tgt_old)
     assert graph.has_edge(("anidb", "1", "R", "1"), ("mal", "2", None, "2"))
     assert graph.has_edge(("anidb", "1", "R", "2"), ("mal", "2", None, "3"))
@@ -70,9 +71,10 @@ def test_apply_edits_ignores_invalid_target_payload() -> None:
     graph.add_edge(("anidb", "1", "R", "1"), ("mal", "2", None, "1"))
 
     # Non-dict target section should be skipped, leaving graph unchanged.
-    edited = apply_edits(graph, {"anidb:1": "invalid"})
+    edited_scopes, edited_pairs = apply_edits(graph, {"anidb:1": "invalid"})
 
-    assert edited == set()
+    assert edited_scopes == set()
+    assert edited_pairs == set()
     assert graph.has_edge(("anidb", "1", "R", "1"), ("mal", "2", None, "1"))
 
 

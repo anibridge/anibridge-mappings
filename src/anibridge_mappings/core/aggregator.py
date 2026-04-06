@@ -129,10 +129,16 @@ class MappingAggregator:
                 len(episode_graph.nodes()),
             )
 
+        edited_scope_pairs: set[
+            tuple[
+                tuple[str, str, str | None],
+                tuple[str, str, str | None],
+            ]
+        ] = set()
         if edits_file:
             edits = load_edits(edits_file)
             if edits:
-                edited_scopes = apply_edits(episode_graph, edits)
+                edited_scopes, edited_scope_pairs = apply_edits(episode_graph, edits)
                 log.info("Applied edits for %d source scopes", len(edited_scopes))
 
         validation_issues = await self._run_validators(
@@ -149,7 +155,8 @@ class MappingAggregator:
                 stage="Graph enrichment: transitive closure",
                 actor="Graph expander: transitive closure",
                 reason="Added indirect links to improve mapping connectivity",
-            )
+            ),
+            blocked_scope_pairs=edited_scope_pairs or None,
         )
         if transitive_edges:
             log.info("Added %d transitive episode mapping edges", transitive_edges)

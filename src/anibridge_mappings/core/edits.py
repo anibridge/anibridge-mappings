@@ -106,7 +106,7 @@ def _normalize_node(node: CommentedMap, depth: int = 0) -> Any:
 
 def apply_edits(
     episode_graph: EpisodeMappingGraph, edits: dict[str, Any]
-) -> set[Scope]:
+) -> tuple[set[Scope], set[tuple[Scope, Scope]]]:
     """Applies edits directly to the episode graph.
 
     Args:
@@ -114,12 +114,14 @@ def apply_edits(
         edits (dict[str, Any]): Dictionary parsed from mappings.edits.yaml.
 
     Returns:
-        set[Scope]: Set of source scopes that were modified.
+        tuple[set[Scope], set[tuple[Scope, Scope]]]: A tuple of (source scopes that
+            were modified, source-target scope pairs that were edited).
 
     Raises:
         EditError: If any edit is invalid or conflicts.
     """
     edited_scopes: set[Scope] = set()
+    edited_scope_pairs: set[tuple[Scope, Scope]] = set()
     scope_index = _build_scope_index(episode_graph)
 
     for src_desc, targets in edits.items():
@@ -157,10 +159,11 @@ def apply_edits(
                 target_descriptor=target_descriptor,
                 force=source_forced or target_forced,
             )
+            edited_scope_pairs.add((source, target))
 
         edited_scopes.add(source)
 
-    return edited_scopes
+    return edited_scopes, edited_scope_pairs
 
 
 def _parse_edit_descriptor(descriptor: str) -> tuple[Scope, bool, str]:

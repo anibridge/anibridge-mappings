@@ -438,9 +438,20 @@ class EpisodeMappingGraph(_BaseGraph[EpisodeNode]):
         return forced
 
     def add_transitive_edges(
-        self, *, provenance: ProvenanceContext | None = None
+        self,
+        *,
+        provenance: ProvenanceContext | None = None,
+        blocked_scope_pairs: set[
+            tuple[tuple[str, str, str | None], tuple[str, str, str | None]]
+        ]
+        | None = None,
     ) -> int:
         """Add edges between all nodes in each connected component.
+
+        Args:
+            provenance: Context for the additions.
+            blocked_scope_pairs: Optional set of (source_scope, target_scope) tuples.
+                Edges between nodes matching these scope pairs will be skipped.
 
         Returns:
             int: Number of new edges added.
@@ -466,6 +477,14 @@ class EpisodeMappingGraph(_BaseGraph[EpisodeNode]):
                     ):
                         # Complex range, skip creating a transitive edge
                         continue
+                    if blocked_scope_pairs:
+                        src_scope = (source[0], source[1], source[2])
+                        tgt_scope = (target[0], target[1], target[2])
+                        if (src_scope, tgt_scope) in blocked_scope_pairs or (
+                            tgt_scope,
+                            src_scope,
+                        ) in blocked_scope_pairs:
+                            continue
                     self.add_edge(
                         source,
                         target,
