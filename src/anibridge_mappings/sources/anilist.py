@@ -134,9 +134,9 @@ class AnilistSource(CachedMetadataSource):
                     media_entries = data.get(alias, {}).get("media", []) or []
 
                     by_id = {
-                        str(entry.get("id")): entry
+                        str(entry["id"]): entry
                         for entry in media_entries
-                        if isinstance(entry, dict) and entry.get("id") is not None
+                        if entry.get("id") is not None
                     }
 
                     for entry_id in batch:
@@ -157,17 +157,13 @@ class AnilistSource(CachedMetadataSource):
                             else None
                         )
 
-                        if isinstance(episodes, int) and episodes > 0:
+                        if episodes and episodes > 0:
                             title_payload = entry.get("title") or {}
-                            titles: list[object] = []
-                            if isinstance(title_payload, dict):
-                                titles.extend(
-                                    title_payload.get(key)
-                                    for key in ("romaji", "english", "native")
-                                )
-                            synonyms = entry.get("synonyms") or []
-                            if isinstance(synonyms, list):
-                                titles.extend(synonyms)
+                            titles: list[object] = [
+                                title_payload.get(key)
+                                for key in ("romaji", "english", "native")
+                            ]
+                            titles.extend(entry.get("synonyms") or [])
 
                             scope_meta: dict[str | None, SourceMeta] | None = {
                                 None: SourceMeta(

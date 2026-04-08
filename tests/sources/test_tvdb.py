@@ -63,7 +63,7 @@ class DummyTvdbSource(BaseTvdbSource):
 
 
 def test_tvdb_parse_helpers() -> None:
-    assert BaseTvdbSource._parse_runtime("24") == 24
+    assert BaseTvdbSource._parse_runtime(24) == 24
     assert BaseTvdbSource._parse_runtime(-1) is None
     assert BaseTvdbSource._parse_year("2020-01-01") == 2020
     assert BaseTvdbSource._scope_from_season(3) == "s3"
@@ -72,7 +72,7 @@ def test_tvdb_parse_helpers() -> None:
     assert dt is not None and dt.tzinfo == UTC
 
     assert BaseTvdbSource._extract_finale_type({"finaleType": "season"}) == "season"
-    assert BaseTvdbSource._extract_season_number({"seasonNumber": "2"}) == 2
+    assert BaseTvdbSource._extract_season_number({"seasonNumber": 2}) == 2
 
 
 def test_tvdb_build_show_scope_meta_marks_recent_incomplete() -> None:
@@ -80,9 +80,9 @@ def test_tvdb_build_show_scope_meta_marks_recent_incomplete() -> None:
     recent = (datetime.now(UTC) - timedelta(days=10)).date().isoformat()
 
     episodes = [
-        {"seasonNumber": 1, "airDate": "2010-01-01", "finaleType": "season"},
-        {"seasonNumber": 1, "airDate": "2010-01-08"},
-        {"seasonNumber": 2, "airDate": recent},
+        {"seasonNumber": 1, "aired": "2010-01-01", "finaleType": "season"},
+        {"seasonNumber": 1, "aired": "2010-01-08"},
+        {"seasonNumber": 2, "aired": recent},
     ]
 
     scope_meta = source._build_show_scope_meta(episodes, 24, ["Show Title"])
@@ -105,21 +105,19 @@ def test_tvdb_movie_and_show_response_parsing() -> None:
 
 
 def test_tvdb_extract_helpers_cover_edge_cases() -> None:
-    assert BaseTvdbSource._extract_season_number({"airedSeason": "4"}) == 4
-    assert BaseTvdbSource._extract_season_number({"season": "x"}) is None
+    assert BaseTvdbSource._extract_season_number({"seasonNumber": 4}) == 4
+    assert BaseTvdbSource._extract_season_number({}) is None
 
-    assert BaseTvdbSource._extract_air_year({"airDateUtc": "2021-02-03"}) == 2021
-    assert BaseTvdbSource._extract_air_year({"airDateUtc": "bad"}) is None
+    assert BaseTvdbSource._extract_air_year({"aired": "2021-02-03"}) == 2021
+    assert BaseTvdbSource._extract_air_year({"aired": "bad"}) is None
 
     assert (
-        BaseTvdbSource._extract_air_date({"airDate": "2022-01-01T00:00:00+00:00"})
+        BaseTvdbSource._extract_air_date({"aired": "2022-01-01T00:00:00+00:00"})
         is not None
     )
-    assert BaseTvdbSource._extract_air_date({"airDate": "not-a-date"}) is None
+    assert BaseTvdbSource._extract_air_date({"aired": "not-a-date"}) is None
 
-    assert (
-        BaseTvdbSource._extract_finale_type({"seriesFinaleType": "series"}) == "series"
-    )
+    assert BaseTvdbSource._extract_finale_type({"finaleType": "series"}) == "series"
     assert BaseTvdbSource._extract_finale_type({"finaleType": "other"}) is None
 
 
@@ -220,8 +218,8 @@ def test_tvdb_show_and_movie_fetch_entry_parsing(monkeypatch) -> None:
         return (
             {
                 "data": {
-                    "runtimeMinutes": 95,
-                    "released": "2020-10-01",
+                    "runtime": 95,
+                    "year": "2020",
                     "name": "Movie Name",
                 }
             },

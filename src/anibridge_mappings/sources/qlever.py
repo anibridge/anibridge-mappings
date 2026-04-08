@@ -126,12 +126,7 @@ class BaseQleverImdbSource(MetadataSource):
 
     def _eligible_ids(self, id_graph: IdMappingGraph) -> list[tuple[str, str | None]]:
         ids: set[tuple[str, str | None]] = set()
-        for node in id_graph.nodes():
-            if not isinstance(node, tuple) or len(node) < 2:
-                continue
-            provider = node[0]
-            entry_id = node[1]
-            scope = node[2] if len(node) > 2 else None
+        for provider, entry_id, scope in id_graph.nodes():
             if provider == self.provider_key:
                 ids.add((entry_id, scope))
         return sorted(ids)
@@ -235,12 +230,9 @@ class BaseQleverImdbSource(MetadataSource):
     @staticmethod
     def _extract_str(binding: dict[str, Any], key: str) -> str | None:
         slot = binding.get(key)
-        if not isinstance(slot, dict):
+        if slot is None:
             return None
-        raw = slot.get("value")
-        if raw is None:
-            return None
-        text = str(raw).strip()
+        text = str(slot["value"]).strip()
         return text or None
 
     @staticmethod

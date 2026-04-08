@@ -157,12 +157,7 @@ class CachedMetadataSource(MetadataSource):
     def _eligible_ids(self, id_graph: IdMappingGraph) -> list[tuple[str, str | None]]:
         """Return entry IDs in the graph that match the provider key."""
         ids: set[tuple[str, str | None]] = set()
-        for node in id_graph.nodes():
-            if not isinstance(node, tuple) or len(node) < 2:
-                continue
-            provider = node[0]
-            entry_id = node[1]
-            scope = node[2] if len(node) > 2 else None
+        for provider, entry_id, scope in id_graph.nodes():
             if provider == self.provider_key:
                 ids.add((entry_id, scope))
         return sorted(ids)

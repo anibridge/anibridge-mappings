@@ -105,7 +105,6 @@ class TmdbShowSource(CachedMetadataSource):
             (
                 payload.get("name"),
                 payload.get("original_name"),
-                payload.get("original_title"),
             )
         )
         scope_meta: dict[str | None, SourceMeta] = {}
@@ -221,13 +220,13 @@ class TmdbMovieSource(CachedMetadataSource):
             return entry_id, None, cacheable
 
         runtime = payload.get("runtime")
-        release_date = payload.get("release_date") or payload.get("releaseDate")
+        release_date = payload.get("release_date")
         start_year = (
             int(release_date[:4])
-            if isinstance(release_date, str) and release_date[:4].isdigit()
+            if release_date and release_date[:4].isdigit()
             else None
         )
-        duration = runtime if isinstance(runtime, int) and runtime > 0 else None
+        duration = runtime if runtime and runtime > 0 else None
         titles = normalize_titles(
             (
                 payload.get("title"),

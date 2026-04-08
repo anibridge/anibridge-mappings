@@ -52,19 +52,9 @@ class AnimeAggregationsSource(IdMappingSource, MetadataSource):
             if anidb_id is None:
                 continue
 
-            resources = entry.get("resources")
-            if not isinstance(resources, dict):
-                resources = {}
-
-            episodes = entry.get("episodes")
-            if not isinstance(episodes, dict):
-                episodes = {}
-            main_episodes = episodes.get("REGULAR")
-            if not isinstance(main_episodes, list):
-                main_episodes = []
-            special_episodes = episodes.get("SPECIAL")
-            if not isinstance(special_episodes, list):
-                special_episodes = []
+            episodes = entry.get("episodes") or {}
+            main_episodes = episodes.get("REGULAR") or []
+            special_episodes = episodes.get("SPECIAL") or []
 
             meta_type = self._parse_type(entry.get("type"), episodes=len(main_episodes))
             duration = self._extract_duration(entry.get("episodes"))
@@ -112,7 +102,7 @@ class AnimeAggregationsSource(IdMappingSource, MetadataSource):
                 continue
 
             resources = entry.get("resources")
-            if not isinstance(resources, dict):
+            if not resources:
                 continue
 
             nodes: list[tuple[str, str, str | None]] = [
@@ -205,35 +195,32 @@ class AnimeAggregationsSource(IdMappingSource, MetadataSource):
     def _collect_imdb(resources: dict[str, Any]) -> list[str]:
         """Collect IMDb IDs from the resources payload."""
         imdb_entries = resources.get("IMDB")
-        if not isinstance(imdb_entries, list):
+        if not imdb_entries:
             return []
-        normalized = {
-            normalized_id
-            for entry in imdb_entries
-            if isinstance(entry, str)
-            for normalized_id in [normalize_imdb_id(entry)]
-            if normalized_id is not None
-        }
-        return sorted(filter(None, normalized))
+        return sorted(
+            {
+                normalized_id
+                for entry in imdb_entries
+                for normalized_id in [normalize_imdb_id(entry)]
+                if normalized_id is not None
+            }
+        )
 
     @staticmethod
     def _collect_mal(resources: dict[str, Any]) -> list[str]:
         """Collect MyAnimeList IDs from the resources payload."""
         mal_entries = resources.get("MAL")
-        if not isinstance(mal_entries, list):
+        if not mal_entries:
             return []
-        normalized: set[str] = set()
-        for entry in mal_entries:
-            raw = str(entry).strip()
-            if raw.isdigit():
-                normalized.add(raw)
-        return sorted(normalized)
+        return sorted(
+            {raw for entry in mal_entries if (raw := str(entry).strip()).isdigit()}
+        )
 
     @staticmethod
     def _collect_tmdb(resources: dict[str, Any]) -> tuple[list[str], list[str]]:
         """Collect TMDB show and movie IDs from the resources payload."""
         tmdb_entries = resources.get("TMDB")
-        if not isinstance(tmdb_entries, list):
+        if not tmdb_entries:
             return ([], [])
 
         show_ids: set[str] = set()
@@ -254,9 +241,11 @@ class AnimeAggregationsSource(IdMappingSource, MetadataSource):
         return (sorted(show_ids), sorted(movie_ids))
 
     @staticmethod
-    def _parse_type(raw_type: Any, episodes: int | None = None) -> SourceType | None:
+    def _parse_type(
+        raw_type: str | None, episodes: int | None = None
+    ) -> SourceType | None:
         """Parse the AnimeAggregations type string into SourceType."""
-        if not isinstance(raw_type, str):
+        if not raw_type:
             return None
         normalized = raw_type.strip().upper()
         if not normalized:
@@ -270,26 +259,19 @@ class AnimeAggregationsSource(IdMappingSource, MetadataSource):
         return None
 
     @staticmethod
-    def _extract_duration(episodes_payload: Any) -> int | None:
+    def _extract_duration(episodes_payload: dict[str, Any] | None) -> int | None:
         """Return the most common episode duration (minutes) when available."""
-        if not isinstance(episodes_payload, dict):
+        if not episodes_payload:
             return None
 
-        episode_lists = []
-        if isinstance(episodes_payload.get("REGULAR"), list):
-            episode_lists.append(episodes_payload["REGULAR"])
-        else:
-            episode_lists.extend(
-                value for value in episodes_payload.values() if isinstance(value, list)
-            )
+        regular = episodes_payload.get("REGULAR")
+        episode_lists = [regular] if regular else list(episodes_payload.values())
 
         lengths: list[int] = []
         for episodes in episode_lists:
             for entry in episodes:
-                if not isinstance(entry, dict):
-                    continue
                 length = entry.get("length")
-                if isinstance(length, int) and length > 0:
+                if length and length > 0:
                     lengths.append(length)
 
         if not lengths:
@@ -303,23 +285,17 @@ class AnimeAggregationsSource(IdMappingSource, MetadataSource):
         """Extract the start year from known date fields."""
         for key in ("start_date", "end_date"):
             raw = entry.get(key)
-            if isinstance(raw, str) and len(raw) >= 4 and raw[:4].isdigit():
+            if raw and raw[:4].isdigit():
                 return int(raw[:4])
 
         episodes_payload = entry.get("episodes")
-        if not isinstance(episodes_payload, dict):
+        if not episodes_payload:
             return None
-        for value in episodes_payload.values():
-            if not isinstance(value, list) or not value:
+        for episode_list in episodes_payload.values():
+            if not episode_list:
                 continue
-            for episode in value:
-                if not isinstance(episode, dict):
-                    continue
+            for episode in episode_list:
                 air_date = episode.get("air_date")
-                if (
-                    isinstance(air_date, str)
-                    and len(air_date) >= 4
-                    and air_date[:4].isdigit()
-                ):
+                if air_date and air_date[:4].isdigit():
                     return int(air_date[:4])
         return None
