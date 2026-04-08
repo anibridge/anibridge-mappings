@@ -148,18 +148,6 @@ class BaseTvdbSource(CachedMetadataSource):
         return f"s{season_number}"
 
     @staticmethod
-    def _subset_scope_meta(
-        scope_meta: dict[str | None, SourceMeta], scope: str | None
-    ) -> dict[str | None, SourceMeta] | None:
-        """Filter scope metadata to a single scope when requested."""
-        if scope is None:
-            return scope_meta
-        meta = scope_meta.get(scope)
-        if meta is None:
-            return None
-        return {scope: meta}
-
-    @staticmethod
     def _parse_runtime(value: int | None) -> int | None:
         """Return the runtime if positive, otherwise None."""
         return value if value and value > 0 else None

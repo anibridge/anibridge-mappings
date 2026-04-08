@@ -98,11 +98,6 @@ def test_tvdb_movie_and_show_response_parsing() -> None:
     assert movie.start_year == 2022
     assert movie.titles == ("Movie Title",)
 
-    show_source = TvdbShowSource()
-    movie_dict: dict[str | None, SourceMeta] = {"s1": movie}
-    subset = show_source._subset_scope_meta(movie_dict, "s1")
-    assert subset == {"s1": movie}
-
 
 def test_tvdb_extract_helpers_cover_edge_cases() -> None:
     assert BaseTvdbSource._extract_season_number({"seasonNumber": 4}) == 4
@@ -119,12 +114,6 @@ def test_tvdb_extract_helpers_cover_edge_cases() -> None:
 
     assert BaseTvdbSource._extract_finale_type({"finaleType": "series"}) == "series"
     assert BaseTvdbSource._extract_finale_type({"finaleType": "other"}) is None
-
-
-def test_tvdb_subset_scope_meta_none_and_missing() -> None:
-    meta: dict[str | None, SourceMeta] = {"s1": SourceMeta(episodes=10)}
-    assert BaseTvdbSource._subset_scope_meta(meta, None) == meta
-    assert BaseTvdbSource._subset_scope_meta(meta, "s9") is None
 
 
 def test_tvdb_request_json_and_token_branches(monkeypatch) -> None:
@@ -209,7 +198,7 @@ def test_tvdb_show_and_movie_fetch_entry_parsing(monkeypatch) -> None:
     )
     assert entry == "77"
     assert cacheable is True
-    assert scoped == {"s1": SourceMeta(episodes=12)}
+    assert scoped == {"s1": SourceMeta(episodes=12), "s2": SourceMeta(episodes=6)}
 
     movie_source = TvdbMovieSource()
 

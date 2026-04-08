@@ -69,12 +69,6 @@ class TmdbShowSource(CachedMetadataSource):
             }
         }
 
-    async def _fetch_missing(
-        self,
-        entry_ids: list[tuple[str, str | None]],
-    ) -> list[tuple[str, dict[str | None, SourceMeta] | None, bool]]:
-        return await super()._fetch_missing(entry_ids)
-
     async def _fetch_entry(
         self,
         session: aiohttp.ClientSession,
@@ -166,18 +160,6 @@ class TmdbShowSource(CachedMetadataSource):
     def _scope_from_season(season_number: int) -> str:
         """Format a season number into a scope label."""
         return f"s{season_number}"
-
-    @staticmethod
-    def _subset_scope_meta(
-        scope_meta: dict[str | None, SourceMeta], scope: str | None
-    ) -> dict[str | None, SourceMeta] | None:
-        """Filter scope metadata to a single scope when requested."""
-        if scope is None:
-            return scope_meta
-        meta = scope_meta.get(scope)
-        if meta is None:
-            return None
-        return {scope: meta}
 
 
 class TmdbMovieSource(CachedMetadataSource):

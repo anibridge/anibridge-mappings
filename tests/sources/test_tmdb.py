@@ -11,15 +11,6 @@ from anibridge_mappings.sources.tmdb import TmdbMovieSource, TmdbShowSource
 def test_tmdb_scope_helpers() -> None:
     assert TmdbShowSource._scope_from_season(4) == "s4"
 
-    meta = SourceMeta(episodes=10)
-    all_scopes: dict[str | None, SourceMeta] = {
-        "s1": meta,
-        "s2": SourceMeta(episodes=5),
-    }
-    assert TmdbShowSource._subset_scope_meta(all_scopes, None) == all_scopes
-    assert TmdbShowSource._subset_scope_meta(all_scopes, "s1") == {"s1": meta}
-    assert TmdbShowSource._subset_scope_meta(all_scopes, "missing") is None
-
 
 def test_tmdb_session_kwargs_without_token_raises(monkeypatch) -> None:
     monkeypatch.delenv("TMDB_API_KEY", raising=False)
