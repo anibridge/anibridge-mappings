@@ -128,3 +128,109 @@ def test_tmdb_movie_fetch_entry_parses_movie_payload(monkeypatch) -> None:
     assert movie.duration == 134
     assert movie.start_year == 1997
     assert movie.titles == ("Princess Mononoke", "もののけ姫")
+
+
+def test_tmdb_fills_missing_start_year_from_season_episodes(monkeypatch) -> None:
+    source = TmdbShowSource()
+
+    async def _fake_request(session, base_id):
+        del session
+        return (
+            {
+                "name": "Long Show",
+                "original_name": "Long Show JP",
+                "seasons": [
+                    {"season_number": 1, "episode_count": 10, "air_date": "2000-04-01"},
+                    {"season_number": 2, "episode_count": 8, "air_date": None},
+                    {"season_number": 3, "episode_count": 6, "air_date": ""},
+                ],
+            },
+            True,
+        )
+
+    season_fetches: list[int] = []
+
+    async def _fake_fetch_season(session, base_id, season_number):
+        del session, base_id
+        season_fetches.append(season_number)
+        if season_number == 2:
+            return 2002
+        if season_number == 3:
+            return 2004
+        return None
+
+    monkeypatch.setattr(source, "_request_show_payload", _fake_request)
+    monkeypatch.setattr(source, "_fetch_season_start_year", _fake_fetch_season)
+
+    class _FakeSession:
+        pass
+
+    scope_meta, cacheable = asyncio.run(
+        source._get_or_fetch_show_meta(_FakeSession(), "99")  # type: ignore
+    )
+    assert cacheable is True
+    assert scope_meta is not None
+    assert scope_meta["s1"].start_year == 2000
+    assert scope_meta["s2"].start_year == 2002
+    assert scope_meta["s3"].start_year == 2004
+    assert sorted(season_fetches) == [2, 3]
+
+
+def test_tmdb_fetch_season_start_year_extracts_min_year(monkeypatch) -> None:
+    source = TmdbShowSource()
+    responses: list[dict] = []
+
+    class _FakeResponse:
+        def __init__(self, data):
+            self.status = 200
+            self._data = data
+
+        async def json(self):
+            return self._data
+
+        def raise_for_status(self):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            pass
+
+    class _FakeSession:
+        def get(self, url):
+            return _FakeResponse(responses[0])
+
+    responses.append(
+        {
+            "episodes": [
+                {"air_date": "2001-10-20"},
+                {"air_date": "2001-10-27"},
+                {"air_date": None},
+                {"air_date": "2002-01-05"},
+            ]
+        }
+    )
+
+    year = asyncio.run(source._fetch_season_start_year(_FakeSession(), "42", 5))  # type: ignore
+    assert year == 2001
+
+
+def test_tmdb_fetch_season_start_year_returns_none_on_404(monkeypatch) -> None:
+    source = TmdbShowSource()
+
+    class _FakeResponse:
+        status = 404
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            pass
+
+    class _FakeSession:
+        def get(self, url):
+            return _FakeResponse()
+
+    year = asyncio.run(source._fetch_season_start_year(_FakeSession(), "42", 5))  # type: ignore
+    assert year is None

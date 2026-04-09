@@ -18,7 +18,7 @@ class TmdbShowSource(CachedMetadataSource):
     """Collect TMDB episode counts for IDs already present in the ID graph."""
 
     API_ROOT = "https://api.themoviedb.org/3"
-    CACHE_VERSION = 3
+    CACHE_VERSION = 4
     provider_key = "tmdb_show"
     cache_filename = "tmdb_meta.json"
 
@@ -102,6 +102,7 @@ class TmdbShowSource(CachedMetadataSource):
             )
         )
         scope_meta: dict[str | None, SourceMeta] = {}
+        missing_years: list[tuple[str, int]] = []
 
         for season in seasons:
             season_number = season.get("season_number")
@@ -121,6 +122,14 @@ class TmdbShowSource(CachedMetadataSource):
                 episodes=episode_count,
                 start_year=start_year,
                 titles=titles,
+            )
+
+            if start_year is None:
+                missing_years.append((scope, season_number))
+
+        if missing_years:
+            await self._fill_missing_start_years(
+                session, base_id, missing_years, scope_meta
             )
 
         self._show_cache[base_id] = scope_meta
@@ -155,6 +164,61 @@ class TmdbShowSource(CachedMetadataSource):
 
                 payload: dict[str, Any] = await response.json()
                 return payload, True
+
+    async def _fill_missing_start_years(
+        self,
+        session: aiohttp.ClientSession,
+        base_id: str,
+        missing: list[tuple[str, int]],
+        scope_meta: dict[str | None, SourceMeta],
+    ) -> None:
+        """Fetch per-season details to fill missing start_year values."""
+        for scope, season_number in missing:
+            year = await self._fetch_season_start_year(session, base_id, season_number)
+            if year is not None:
+                scope_meta[scope].start_year = year
+
+    async def _fetch_season_start_year(
+        self,
+        session: aiohttp.ClientSession,
+        base_id: str,
+        season_number: int,
+    ) -> int | None:
+        """Fetch a season's earliest episode air year from TMDB."""
+        url = f"{self.API_ROOT}/tv/{base_id}/season/{season_number}"
+        while True:
+            async with session.get(url) as response:
+                if response.status == 429:
+                    retry = int(response.headers.get("Retry-After", "2"))
+                    log.warning(
+                        "TMDB rate limit hit for %s/season/%s; sleeping %s",
+                        base_id,
+                        season_number,
+                        retry,
+                    )
+                    await asyncio.sleep(retry + 1)
+                    continue
+
+                if response.status == 404:
+                    return None
+
+                try:
+                    response.raise_for_status()
+                except aiohttp.ClientResponseError:
+                    return None
+
+                payload: dict[str, Any] = await response.json()
+                episodes = payload.get("episodes") or []
+
+                min_year: int | None = None
+                for ep in episodes:
+                    air_date = ep.get("air_date") or ""
+                    if air_date[:4].isdigit():
+                        year = int(air_date[:4])
+                        if min_year is None or year < min_year:
+                            min_year = year
+
+                return min_year
 
     @staticmethod
     def _scope_from_season(season_number: int) -> str:
