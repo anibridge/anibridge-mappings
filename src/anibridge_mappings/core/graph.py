@@ -456,6 +456,8 @@ class EpisodeMappingGraph(_BaseGraph[EpisodeNode]):
         Returns:
             int: Number of new edges added.
         """
+        existing_scope_pairs = self._build_scope_pair_index()
+
         visited: set[EpisodeNode] = set()
         added = 0
         for node in self.nodes():
@@ -477,14 +479,22 @@ class EpisodeMappingGraph(_BaseGraph[EpisodeNode]):
                     ):
                         # Complex range, skip creating a transitive edge
                         continue
-                    if blocked_scope_pairs:
-                        src_scope = (source[0], source[1], source[2])
-                        tgt_scope = (target[0], target[1], target[2])
-                        if (src_scope, tgt_scope) in blocked_scope_pairs or (
+                    src_scope = (source[0], source[1], source[2])
+                    tgt_scope = (target[0], target[1], target[2])
+                    if blocked_scope_pairs and (
+                        (src_scope, tgt_scope) in blocked_scope_pairs
+                        or (
                             tgt_scope,
                             src_scope,
-                        ) in blocked_scope_pairs:
-                            continue
+                        )
+                        in blocked_scope_pairs
+                    ):
+                        continue
+                    if (src_scope, tgt_scope) in existing_scope_pairs or (
+                        tgt_scope,
+                        src_scope,
+                    ) in existing_scope_pairs:
+                        continue
                     self.add_edge(
                         source,
                         target,
@@ -493,6 +503,21 @@ class EpisodeMappingGraph(_BaseGraph[EpisodeNode]):
                     )
                     added += 1
         return added
+
+    def _build_scope_pair_index(
+        self,
+    ) -> set[tuple[tuple[str, str, str | None], tuple[str, str, str | None]]]:
+        """Return scope pairs that already have at least one direct edge."""
+        pairs: set[tuple[tuple[str, str, str | None], tuple[str, str, str | None]]] = (
+            set()
+        )
+        for node in self.nodes():
+            src_scope = (node[0], node[1], node[2])
+            for neighbor in self._adj.get(node, set()):
+                tgt_scope = (neighbor[0], neighbor[1], neighbor[2])
+                if src_scope != tgt_scope:
+                    pairs.add((src_scope, tgt_scope))
+        return pairs
 
     def get_component_by_provider(
         self, start: EpisodeNode
