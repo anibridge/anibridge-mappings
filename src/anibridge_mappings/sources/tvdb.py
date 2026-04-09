@@ -24,7 +24,7 @@ class BaseTvdbSource(CachedMetadataSource):
     API_KEY_ENV = "TVDB_API_KEY"
     API_PIN_ENV = "TVDB_PIN"
     RECENT_AIR_DAYS = 180
-    CACHE_VERSION = 3
+    CACHE_VERSION = 4
 
     def __init__(self, concurrency: int = 6) -> None:
         """Initialize the TVDB source with a specific concurrency level.

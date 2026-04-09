@@ -18,7 +18,7 @@ class TmdbShowSource(CachedMetadataSource):
     """Collect TMDB episode counts for IDs already present in the ID graph."""
 
     API_ROOT = "https://api.themoviedb.org/3"
-    CACHE_VERSION = 2
+    CACHE_VERSION = 3
     provider_key = "tmdb_show"
     cache_filename = "tmdb_meta.json"
 
