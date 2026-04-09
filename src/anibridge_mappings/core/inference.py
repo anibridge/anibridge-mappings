@@ -134,26 +134,24 @@ def _unique_best_matches(
 
 
 def _merge_context(base: SourceMeta, related: list[SourceMeta]) -> SourceMeta:
-    """Fill missing title and year fields from same-entry related scopes."""
+    """Fill missing title fields from same-entry related scopes."""
     titles = base.titles
-    start_year = base.start_year
+    if titles:
+        return base
 
     for meta in related:
-        if not titles and meta.titles:
+        if meta.titles:
             titles = meta.titles
-        if start_year is None and meta.start_year is not None:
-            start_year = meta.start_year
-        if titles and start_year is not None:
             break
 
-    if titles == base.titles and start_year == base.start_year:
+    if titles == base.titles:
         return base
 
     return SourceMeta(
         type=base.type,
         episodes=base.episodes,
         duration=base.duration,
-        start_year=start_year,
+        start_year=base.start_year,
         titles=titles,
     )
 

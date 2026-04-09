@@ -194,13 +194,13 @@ def test_inference_uses_sibling_series_metadata_to_break_special_ties() -> None:
     store.set(
         special_2002[0],
         special_2002[1],
-        SourceMeta(type=SourceType.TV, episodes=1),
+        SourceMeta(type=SourceType.TV, episodes=1, start_year=2002),
         special_2002[2],
     )
     store.set(
         special_2003[0],
         special_2003[1],
-        SourceMeta(type=SourceType.TV, episodes=1),
+        SourceMeta(type=SourceType.TV, episodes=1, start_year=2003),
         special_2003[2],
     )
     store.set(

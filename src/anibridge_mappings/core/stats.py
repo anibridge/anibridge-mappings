@@ -216,7 +216,7 @@ def render_stats_markdown(stats_payload: dict[str, Any]) -> str:
     """Render a human-readable markdown summary from a stats payload.
 
     Args:
-        stats_payload (dict[str, Any]): Stats payload from ``build_stats``.
+        stats_payload (dict[str, Any]): Stats payload from `build_stats`.
 
     Returns:
         str: Markdown report suitable for GitHub summaries and release notes.
