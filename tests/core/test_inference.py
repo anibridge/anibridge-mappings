@@ -1,5 +1,6 @@
 from anibridge_mappings.core.graph import IdMappingGraph
 from anibridge_mappings.core.inference import (
+    _duration_score,
     _episode_range,
     _normalize_title,
     _relative_delta,
@@ -245,4 +246,62 @@ def test_inference_uses_sibling_series_metadata_to_break_special_ties() -> None:
     )
     assert not episode_graph.has_edge(
         ("anidb", "835", "S", "1"), ("anilist", "7579", None, "1")
+    )
+
+
+def test_duration_score_returns_penalty_not_rejection() -> None:
+    """Large duration mismatches return a negative penalty, not None."""
+    exact = SourceMeta(duration=24)
+    close = SourceMeta(duration=25)
+    moderate = SourceMeta(duration=30)
+    far = SourceMeta(duration=100)
+    none = SourceMeta(duration=None)
+
+    # Close match: positive bonus
+    assert _duration_score(exact, close) == 0.1
+    # Moderate mismatch: neutral
+    assert _duration_score(exact, moderate) == 0.0
+    # Large mismatch: negative penalty (not None)
+    penalty = _duration_score(exact, far)
+    assert penalty is not None
+    assert penalty < 0
+    # Missing duration: neutral
+    assert _duration_score(exact, none) == 0.0
+
+
+def test_inference_matches_despite_duration_mismatch() -> None:
+    """Entries with strong title/year match should infer despite duration gap."""
+    id_graph = IdMappingGraph()
+    anidb = ("anidb", "1185", "R")
+    mal = ("mal", "2881", None)
+    id_graph.add_edge(anidb, mal)
+
+    store = MetaStore()
+    store.set(
+        "anidb",
+        "1185",
+        SourceMeta(
+            type=SourceType.TV,
+            episodes=3,
+            duration=100,
+            start_year=1995,
+            titles=("Silent Service",),
+        ),
+        "R",
+    )
+    store.set(
+        "mal",
+        "2881",
+        SourceMeta(
+            type=SourceType.TV,
+            episodes=3,
+            duration=30,
+            start_year=1995,
+            titles=("Silent Service",),
+        ),
+    )
+
+    episode_graph = infer_episode_mappings(store, id_graph)
+    assert episode_graph.has_edge(
+        ("anidb", "1185", "R", "1-3"), ("mal", "2881", None, "1-3")
     )

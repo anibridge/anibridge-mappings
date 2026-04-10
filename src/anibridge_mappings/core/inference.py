@@ -152,8 +152,6 @@ def _match_score(left: SourceMeta, right: SourceMeta) -> float | None:
         return None
 
     duration_score = _duration_score(left, right)
-    if duration_score is None:
-        return None
 
     score = title_score + year_score + duration_score + type_score
     return score if score >= _MIN_INFERENCE_SCORE else None
@@ -183,8 +181,8 @@ def _year_score(left: SourceMeta, right: SourceMeta) -> float | None:
     return None
 
 
-def _duration_score(left: SourceMeta, right: SourceMeta) -> float | None:
-    """Return a compatibility bonus for runtime alignment."""
+def _duration_score(left: SourceMeta, right: SourceMeta) -> float:
+    """Return a compatibility bonus/penalty for runtime alignment."""
     left_duration, right_duration = left.duration, right.duration
     if left_duration and right_duration:
         abs_delta = abs(left_duration - right_duration)
@@ -193,7 +191,7 @@ def _duration_score(left: SourceMeta, right: SourceMeta) -> float | None:
             return 0.1
         if rel_delta <= 0.25 or abs_delta <= 10:
             return 0.0
-        return None
+        return -0.3
     return 0.0
 
 
