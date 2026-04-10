@@ -160,12 +160,19 @@ class ShinkroTvdbMappingSource(
                 if season is None:
                     continue
 
-                total = self._season_total(store, tvdb_id, season)
-                if total is None:
-                    continue
-
                 start = self._normalize_start(entry.get("start"))
-                pairs = self._range_pairs(start, total, set())
+
+                if start > 0:
+                    mal_total = self._mal_total(store, mal_id)
+                    if mal_total is None:
+                        continue
+                    pairs = [(start + i, i + 1) for i in range(mal_total)]
+                else:
+                    total = self._season_total(store, tvdb_id, season)
+                    if total is None:
+                        continue
+                    pairs = self._range_pairs(0, total, set())
+
                 self._add_pairs(graph, tvdb_id, season, mal_id, pairs)
 
         return graph
@@ -195,6 +202,14 @@ class ShinkroTvdbMappingSource(
         if meta and isinstance(meta.episodes, int) and meta.episodes > 0:
             return meta.episodes
         log.debug("Missing TVDB metadata for %s season %s", tvdb_id, season)
+        return None
+
+    def _mal_total(self, store: MetaStore, mal_id: str) -> int | None:
+        """Return the episode count for a MAL entry from metadata."""
+        meta = store.peek("mal", mal_id, None)
+        if meta and isinstance(meta.episodes, int) and meta.episodes > 0:
+            return meta.episodes
+        log.debug("Missing MAL metadata for %s", mal_id)
         return None
 
     def _range_pairs(
