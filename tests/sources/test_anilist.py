@@ -113,7 +113,7 @@ def test_anilist_fetch_missing_parses_results_and_handles_rate_limit(
     scope_2 = by_id["2"]
     assert scope_1 is not None and scope_1[None].episodes == 12
     assert scope_2 is not None and scope_2[None].episodes == 1
-    assert scope_1[None].titles == ("Title One", "Title One EN", "Title One Alt")
+    assert scope_1[None].titles == ("Title One", "Title One EN")
     meta_2 = scope_2[None]
     assert meta_2 is not None
     assert meta_2.type is not None and meta_2.type.value == "movie"

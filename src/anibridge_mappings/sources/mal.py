@@ -196,7 +196,6 @@ class MalSource(CachedMetadataSource):
         titles = normalize_titles(
             (
                 node.get("title"),
-                *(alternative_titles.get("synonyms") or []),
                 alternative_titles.get("en"),
                 alternative_titles.get("ja"),
             )

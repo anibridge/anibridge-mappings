@@ -26,6 +26,8 @@ class BaseTvdbSource(CachedMetadataSource):
     RECENT_AIR_DAYS = 180
     CACHE_VERSION = 4
 
+    _ALLOWED_ALIAS_LANGUAGES = frozenset({"eng", "jpn", "zho"})
+
     def __init__(self, concurrency: int = 6) -> None:
         """Initialize the TVDB source with a specific concurrency level.
 
@@ -283,6 +285,9 @@ class BaseTvdbSource(CachedMetadataSource):
         if name:
             candidates.append(name)
         for alias in data.get("aliases") or []:
+            language = alias.get("language")
+            if language and language not in BaseTvdbSource._ALLOWED_ALIAS_LANGUAGES:
+                continue
             alias_name = alias.get("name")
             if alias_name:
                 candidates.append(alias_name)

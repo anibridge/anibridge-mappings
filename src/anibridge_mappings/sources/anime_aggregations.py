@@ -25,6 +25,18 @@ class AnimeAggregationsSource(IdMappingSource, MetadataSource):
     LOCAL_REPO_ROOT = Path("data/meta/AnimeAggregations")
     DEFAULT_SCOPE = "R"
 
+    _ALLOWED_TITLE_LANGUAGES = frozenset(
+        {
+            "ENGLISH",
+            "JAPANESE",
+            "JAPANESE_TRANSLITERATED",
+            "CHINESE",
+            "CHINESE_SIMPLIFIED",
+            "CHINESE_TRADITIONAL",
+            "CHINESE_TRANSLITERATED",
+        }
+    )
+
     def __init__(self) -> None:
         """Initialize the local cache for fetched entries."""
         self._entries: list[dict[str, Any]] = []
@@ -294,6 +306,9 @@ class AnimeAggregationsSource(IdMappingSource, MetadataSource):
         for item in raw_titles:
             title_type = item.get("type", "")
             if title_type not in ("MAIN", "OFFICIAL"):
+                continue
+            language = item.get("language", "")
+            if language not in AnimeAggregationsSource._ALLOWED_TITLE_LANGUAGES:
                 continue
             title = item.get("title", "")
             if title:

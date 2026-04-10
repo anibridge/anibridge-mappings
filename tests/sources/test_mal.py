@@ -148,7 +148,6 @@ def test_mal_prepare_fetches_rankings_and_parses_metadata(
     assert meta_1[None].duration == 24
     assert meta_1[None].titles == (
         "Series One",
-        "Series 1",
         "Series One EN",
         "シリーズ1",
     )

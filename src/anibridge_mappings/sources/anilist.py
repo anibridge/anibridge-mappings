@@ -163,7 +163,6 @@ class AnilistSource(CachedMetadataSource):
                                 title_payload.get(key)
                                 for key in ("romaji", "english", "native")
                             ]
-                            titles.extend(entry.get("synonyms") or [])
 
                             scope_meta: dict[str | None, SourceMeta] | None = {
                                 None: SourceMeta(
