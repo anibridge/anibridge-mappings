@@ -48,11 +48,6 @@ def test_cached_metadata_source_collect_metadata_roundtrip(tmp_path) -> None:
     assert "1" in cache
 
 
-def test_cached_metadata_legacy_payload_converter_default() -> None:
-    source = DummyCachedSource()
-    assert source._convert_legacy_payload({"v": 1}) == {}
-
-
 def test_cached_metadata_eligible_ids_and_cache_path(tmp_path) -> None:
     CachedMetadataSource.DATA_DIR = tmp_path
     source = DummyCachedSource()

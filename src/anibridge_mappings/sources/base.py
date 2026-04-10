@@ -224,12 +224,6 @@ class CachedMetadataSource(MetadataSource):
                 )
                 for entry_id, scope_map in entries.items()
             }
-        return self._convert_legacy_payload(payload)
-
-    def _convert_legacy_payload(
-        self, payload: object
-    ) -> dict[str, dict[str | None, SourceMeta] | None]:
-        """Convert legacy cache payloads into the current format."""
         return {}
 
     def _persist_cache(self) -> None:
