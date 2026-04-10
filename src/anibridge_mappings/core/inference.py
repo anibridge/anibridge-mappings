@@ -2,6 +2,7 @@
 
 import re
 from collections.abc import Iterable
+from dataclasses import replace
 from difflib import SequenceMatcher
 from itertools import combinations
 from logging import getLogger
@@ -64,12 +65,16 @@ def _component_meta_candidates(
 def _select_inference_pairs(
     candidates: list[tuple[SourceMeta, IdNode]],
 ) -> list[tuple[IdNode, IdNode, str]]:
-    """Return cross-provider candidates for inference."""
+    """Return cross-provider candidates for inference via greedy matching.
+
+    Nodes whose best score is tied across multiple partners are skipped to
+    avoid ambiguous matches.
+    """
     by_provider: dict[str, list[tuple[SourceMeta, IdNode]]] = {}
     for meta, node in candidates:
         by_provider.setdefault(node[0], []).append((meta, node))
 
-    inferred_pairs: list[tuple[IdNode, IdNode, str]] = []
+    result: list[tuple[IdNode, IdNode, str]] = []
     for left_provider, right_provider in combinations(sorted(by_provider), 2):
         pair_scores: list[tuple[float, IdNode, IdNode, str]] = []
         for meta_left, node_left in by_provider[left_provider]:
@@ -77,105 +82,65 @@ def _select_inference_pairs(
                 score = _match_score(meta_left, meta_right)
                 if score is None:
                     continue
-
                 episode_range = _episode_range(meta_left)
                 if episode_range is None:
                     continue
-
                 pair_scores.append((score, node_left, node_right, episode_range))
 
-        if not pair_scores:
-            continue
+        # Build best-score lookup per node; mark ambiguous nodes (tied top score
+        # with different partners) so they are excluded from matching.
+        ambiguous = _ambiguous_nodes(pair_scores)
 
-        # Iteratively select mutual-best pairs, removing matched nodes each
-        # round so remaining candidates can find their next-best partner.
+        # Greedy: sort by score descending, pick best unmatched pairs
+        pair_scores.sort(
+            key=lambda item: (
+                -item[0],
+                item[1][1],
+                item[1][2] or "",
+                item[2][1],
+                item[2][2] or "",
+            )
+        )
         matched_left: set[IdNode] = set()
         matched_right: set[IdNode] = set()
-        remaining = list(pair_scores)
+        for _score, node_left, node_right, episode_range in pair_scores:
+            if node_left in matched_left or node_right in matched_right:
+                continue
+            if node_left in ambiguous or node_right in ambiguous:
+                continue
+            result.append((node_left, node_right, episode_range))
+            matched_left.add(node_left)
+            matched_right.add(node_right)
 
-        while remaining:
-            best_right_for_left = _unique_best_matches(remaining, pick_left=True)
-            best_left_for_right = _unique_best_matches(remaining, pick_left=False)
-
-            round_pairs: list[tuple[float, IdNode, IdNode, str]] = []
-            for _score, node_left, node_right, episode_range in sorted(
-                remaining,
-                key=lambda item: (
-                    -item[0],
-                    item[1][1],
-                    "" if item[1][2] is None else item[1][2],
-                    item[2][1],
-                    "" if item[2][2] is None else item[2][2],
-                ),
-            ):
-                if best_right_for_left.get(node_left) != node_right:
-                    continue
-                if best_left_for_right.get(node_right) != node_left:
-                    continue
-                round_pairs.append((_score, node_left, node_right, episode_range))
-
-            if not round_pairs:
-                break
-
-            for _score, node_left, node_right, episode_range in round_pairs:
-                inferred_pairs.append((node_left, node_right, episode_range))
-                matched_left.add(node_left)
-                matched_right.add(node_right)
-
-            remaining = [
-                p
-                for p in remaining
-                if p[1] not in matched_left and p[2] not in matched_right
-            ]
-
-    return inferred_pairs
+    return result
 
 
-def _unique_best_matches(
+def _ambiguous_nodes(
     pair_scores: list[tuple[float, IdNode, IdNode, str]],
-    *,
-    pick_left: bool,
-) -> dict[IdNode, IdNode]:
-    """Return unique best matches, dropping nodes whose top score is ambiguous."""
+) -> set[IdNode]:
+    """Return nodes whose top score is shared by more than one partner."""
     best: dict[IdNode, tuple[float, IdNode | None]] = {}
-    for score, node_left, node_right, _episode_range in pair_scores:
-        key_node = node_left if pick_left else node_right
-        other_node = node_right if pick_left else node_left
-        current = best.get(key_node)
-        if current is None or score > current[0]:
-            best[key_node] = (score, other_node)
-            continue
-        if score == current[0] and current[1] != other_node:
-            best[key_node] = (score, None)
+    for score, node_left, node_right, _ep in pair_scores:
+        for key_node, other_node in ((node_left, node_right), (node_right, node_left)):
+            current = best.get(key_node)
+            if current is None or score > current[0]:
+                best[key_node] = (score, other_node)
+            elif score == current[0] and current[1] != other_node:
+                best[key_node] = (score, None)  # ambiguous
 
-    return {
-        key_node: other_node
-        for key_node, (_score, other_node) in best.items()
-        if other_node is not None
-    }
+    return {node for node, (_, partner) in best.items() if partner is None}
 
 
 def _merge_context(base: SourceMeta, related: list[SourceMeta]) -> SourceMeta:
     """Fill missing title fields from same-entry related scopes."""
-    titles = base.titles
-    if titles:
+    if base.titles:
         return base
 
     for meta in related:
         if meta.titles:
-            titles = meta.titles
-            break
+            return replace(base, titles=meta.titles)
 
-    if titles == base.titles:
-        return base
-
-    return SourceMeta(
-        type=base.type,
-        episodes=base.episodes,
-        duration=base.duration,
-        start_year=base.start_year,
-        titles=titles,
-    )
+    return base
 
 
 def _match_score(left: SourceMeta, right: SourceMeta) -> float | None:
@@ -241,10 +206,8 @@ def _duration_score(left: SourceMeta, right: SourceMeta) -> float | None:
 
 
 def _title_score(left: SourceMeta, right: SourceMeta) -> float:
-    left_titles = [_normalize_title(title) for title in left.titles]
-    right_titles = [_normalize_title(title) for title in right.titles]
-    left_titles = [title for title in left_titles if title]
-    right_titles = [title for title in right_titles if title]
+    left_titles = [t for title in left.titles if (t := _normalize_title(title))]
+    right_titles = [t for title in right.titles if (t := _normalize_title(title))]
     if not left_titles or not right_titles:
         return 0.0
 
