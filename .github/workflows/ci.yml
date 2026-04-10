@@ -120,6 +120,7 @@ jobs:
 
       - name: Build mappings
         env:
+          MAL_API_KEY: ${{ secrets.MAL_API_KEY }}
           TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
           TVDB_API_KEY: ${{ secrets.TVDB_API_KEY }}
         run: |
