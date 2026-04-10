@@ -240,6 +240,11 @@ class CachedMetadataSource(MetadataSource):
             orjson.dumps(
                 {
                     "version": self.CACHE_VERSION,
+                    "meta": {
+                        "provider": self.provider_key,
+                        "generated_on": int(asyncio.get_event_loop().time()),
+                        "length": len(self._cache),
+                    },
                     "entries": {
                         entry_id: (
                             {
