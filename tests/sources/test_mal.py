@@ -171,7 +171,7 @@ def test_mal_prepare_requires_client_id_for_raw_refresh_token(
     CachedMetadataSource.DATA_DIR = tmp_path
     source = MalSource()
     monkeypatch.setenv("MAL_API_KEY", "refresh-token-only")
-    monkeypatch.delenv("MAL_CLIENT_ID", raising=False)
+    monkeypatch.setenv("MAL_CLIENT_ID", "")
 
     with pytest.raises(RuntimeError, match="MAL metadata fetches require"):
         asyncio.run(source.prepare())
