@@ -145,7 +145,7 @@ def test_mal_prepare_fetches_rankings_and_parses_metadata(
     assert meta_1[None].episodes == 12
     assert meta_1[None].type is SourceType.TV
     assert meta_1[None].start_year == 2020
-    assert meta_1[None].duration == 1440
+    assert meta_1[None].duration == 24
     assert meta_1[None].titles == (
         "Series One",
         "Series 1",

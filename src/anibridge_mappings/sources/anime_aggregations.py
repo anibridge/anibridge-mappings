@@ -282,7 +282,7 @@ class AnimeAggregationsSource(IdMappingSource, MetadataSource):
             return None
 
         most_common, _count = Counter(lengths).most_common(1)[0]
-        return most_common * 60
+        return most_common
 
     @staticmethod
     def _extract_titles(

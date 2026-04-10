@@ -19,7 +19,7 @@ class SourceMeta:
 
     type: SourceType | None = None
     episodes: int | None = None
-    duration: int | None = None  # in seconds
+    duration: int | None = None  # in minutes
     start_year: int | None = None
     titles: tuple[str, ...] = ()
 

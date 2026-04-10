@@ -23,7 +23,7 @@ class MalSource(CachedMetadataSource):
     TOKEN_URL = "https://myanimelist.net/v1/oauth2/token"
     API_URL = "https://api.myanimelist.net/v2/anime/ranking"
 
-    CACHE_VERSION = 1
+    CACHE_VERSION = 2
 
     PAGE_LIMIT = 500
     MEDIA_TYPES: ClassVar[dict[str, SourceType]] = {
@@ -201,12 +201,14 @@ class MalSource(CachedMetadataSource):
                 alternative_titles.get("ja"),
             )
         )
+        raw_duration = node.get("average_episode_duration")
+        duration = round(raw_duration / 60) if isinstance(raw_duration, int) else None
 
         return {
             None: SourceMeta(
                 type=media_type,
                 episodes=episodes,
-                duration=node.get("average_episode_duration") or None,
+                duration=duration,
                 start_year=(
                     int(node["start_date"][:4]) if node.get("start_date") else None
                 ),

@@ -17,7 +17,7 @@ class AnilistSource(CachedMetadataSource):
 
     API_URL = "https://graphql.anilist.co"
     BATCH_SIZE = 50
-    CACHE_VERSION = 3
+    CACHE_VERSION = 4
 
     provider_key = "anilist"
     cache_filename = "anilist.json"
@@ -165,14 +165,12 @@ class AnilistSource(CachedMetadataSource):
                             ]
                             titles.extend(entry.get("synonyms") or [])
 
-                            raw_duration = entry.get("duration")
-                            duration_secs = raw_duration * 60 if raw_duration else None
                             scope_meta: dict[str | None, SourceMeta] | None = {
                                 None: SourceMeta(
                                     type=media_type,
                                     episodes=episodes,
                                     start_year=entry.get("seasonYear"),
-                                    duration=duration_secs,
+                                    duration=entry.get("duration"),
                                     titles=normalize_titles(titles),
                                 )
                             }
