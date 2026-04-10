@@ -40,7 +40,7 @@ Note: releases are updated daily and tagged with a `v{major}` version, where bre
 | Source                                                                                            | Metadata | ID Mappings | Episode Mappings | Providers                             |
 | ------------------------------------------------------------------------------------------------- | -------- | ----------- | ---------------- | ------------------------------------- |
 | [Anime-Lists/anime-lists](https://github.com/Anime-Lists/anime-lists)                             | No       | Yes         | Yes              | AniDB, IMDB, TMDB, TVDB               |
-| [manami-project/anime-offline-database](https://github.com/manami-project/anime-offline-database) | Yes      | Yes         | No               | AniDB, AniList, MAL                   |
+| [manami-project/anime-offline-database](https://github.com/manami-project/anime-offline-database) | Not Yet  | Yes         | No               | AniDB, AniList, MAL                   |
 | [notseteve/AnimeAggregations](https://github.com/notseteve/AnimeAggregations)                     | Yes      | Yes         | No               | AniDB, IMDB, MAL, TMDB                |
 | [varoOP/shinkro-mapping](https://github.com/varoOP/shinkro-mapping)                               | No       | Yes         | Yes              | MAL, TMDB, TVDB                       |
 | [QLever](https://qlever.dev/)                                                                     | Yes      | Yes         | No               | AniDB, AniList, IMDB, MAL, TMDB, TVDB |

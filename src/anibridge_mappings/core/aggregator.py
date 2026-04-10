@@ -464,7 +464,6 @@ def default_aggregator() -> MappingAggregator:
     return MappingAggregator(
         # Order matters for metadata; later sources have higher precedence
         metadata_sources=(
-            anime_offline_db,
             anilist,
             anime_aggregations,
             mal,

@@ -10,8 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from zstandard import ZstdDecompressor
 
 from anibridge_mappings.core.graph import IdMappingGraph
-from anibridge_mappings.core.meta import MetaStore, SourceType, normalize_titles
-from anibridge_mappings.sources.base import IdMappingSource, MetadataSource
+from anibridge_mappings.sources.base import IdMappingSource
 
 
 class AnimeOfflineDatabaseSeason(BaseModel):
@@ -35,7 +34,7 @@ class AnimeOfflineDatabaseEntry(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
 
-class AnimeOfflineDatabaseSource(MetadataSource, IdMappingSource):
+class AnimeOfflineDatabaseSource(IdMappingSource):
     """Source handler for the Anime Offline Database."""
 
     SOURCE_URL = "https://github.com/manami-project/anime-offline-database/releases/download/latest/anime-offline-database-minified.json.zst"
@@ -74,34 +73,6 @@ class AnimeOfflineDatabaseSource(MetadataSource, IdMappingSource):
         ]
         self._prepared = True
 
-    async def collect_metadata(self, id_graph: IdMappingGraph) -> MetaStore:
-        """Populate and return a metadata store derived from the dataset.
-
-        Args:
-            id_graph (IdMappingGraph): ID graph (unused).
-
-        Returns:
-            MetaStore: Collected metadata.
-        """
-        del id_graph  # Metadata does not depend on graph structure yet.
-        store = MetaStore()
-        for entry in self._require_entries():
-            providers = self._collect_provider_ids(entry)
-            if not providers:
-                continue
-
-            parsed_type = self._parse_type_string(entry.type) if entry.type else None
-            for provider, entry_id, scope in providers:
-                meta = store.get(provider, entry_id, scope)
-                if parsed_type is not None:
-                    meta.type = parsed_type
-                if entry.episodes is not None:
-                    meta.episodes = entry.episodes
-                if entry.anime_season is not None:
-                    meta.start_year = entry.anime_season.year
-                meta.titles = normalize_titles((*meta.titles, entry.title))
-        return store
-
     def build_id_graph(self) -> IdMappingGraph:
         """Build and return the ID mapping graph.
 
@@ -139,14 +110,3 @@ class AnimeOfflineDatabaseSource(MetadataSource, IdMappingSource):
             if match:
                 return provider, match.group(1), None if provider != "anidb" else "R"
         return None
-
-    @staticmethod
-    def _parse_type_string(type_str: str) -> SourceType | None:
-        """Parse a type string into a SourceType enum."""
-        type_str = type_str.lower()
-        if type_str == "movie":
-            return SourceType.MOVIE
-        if type_str in ("tv", "ova", "ona", "special", "music"):
-            return SourceType.TV
-        if type_str == "unknown":
-            return None
