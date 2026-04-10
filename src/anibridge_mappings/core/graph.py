@@ -457,6 +457,9 @@ class EpisodeMappingGraph(_BaseGraph[EpisodeNode]):
             int: Number of new edges added.
         """
         existing_scope_pairs = self._build_scope_pair_index()
+        scope_provider_entries = self._build_scope_provider_entry_index(
+            existing_scope_pairs
+        )
 
         visited: set[EpisodeNode] = set()
         added = 0
@@ -495,6 +498,12 @@ class EpisodeMappingGraph(_BaseGraph[EpisodeNode]):
                         src_scope,
                     ) in existing_scope_pairs:
                         continue
+                    if self._would_conflict_provider_entry(
+                        src_scope, target, scope_provider_entries
+                    ) or self._would_conflict_provider_entry(
+                        tgt_scope, source, scope_provider_entries
+                    ):
+                        continue
                     self.add_edge(
                         source,
                         target,
@@ -518,6 +527,30 @@ class EpisodeMappingGraph(_BaseGraph[EpisodeNode]):
                 if src_scope != tgt_scope:
                     pairs.add((src_scope, tgt_scope))
         return pairs
+
+    @staticmethod
+    def _build_scope_provider_entry_index(
+        existing_scope_pairs: set[
+            tuple[tuple[str, str, str | None], tuple[str, str, str | None]]
+        ],
+    ) -> dict[tuple[tuple[str, str, str | None], str], set[str]]:
+        """Map (source_scope, target_provider) to the set of target entry IDs."""
+        index: dict[tuple[tuple[str, str, str | None], str], set[str]] = {}
+        for src_scope, tgt_scope in existing_scope_pairs:
+            index.setdefault((src_scope, tgt_scope[0]), set()).add(tgt_scope[1])
+            index.setdefault((tgt_scope, src_scope[0]), set()).add(src_scope[1])
+        return index
+
+    @staticmethod
+    def _would_conflict_provider_entry(
+        scope: tuple[str, str, str | None],
+        candidate: EpisodeNode,
+        index: dict[tuple[tuple[str, str, str | None], str], set[str]],
+    ) -> bool:
+        """Return True when adding candidate would introduce a cross-ID conflict."""
+        key = (scope, candidate[0])
+        existing = index.get(key)
+        return existing is not None and candidate[1] not in existing
 
     def get_component_by_provider(
         self, start: EpisodeNode
