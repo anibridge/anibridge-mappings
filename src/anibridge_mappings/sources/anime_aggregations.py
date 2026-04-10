@@ -10,7 +10,7 @@ from typing import Any
 import orjson
 
 from anibridge_mappings.core.graph import IdMappingGraph
-from anibridge_mappings.core.meta import MetaStore, SourceType
+from anibridge_mappings.core.meta import MetaStore, SourceType, normalize_titles
 from anibridge_mappings.sources.base import IdMappingSource, MetadataSource
 from anibridge_mappings.utils.provider_ids import normalize_imdb_id
 
@@ -60,6 +60,8 @@ class AnimeAggregationsSource(IdMappingSource, MetadataSource):
             duration = self._extract_duration(entry.get("episodes"))
             start_year = self._extract_start_year(entry)
 
+            titles = self._extract_titles(entry.get("titles"))
+
             if main_episodes:
                 meta = store.get(
                     "anidb",
@@ -80,6 +82,8 @@ class AnimeAggregationsSource(IdMappingSource, MetadataSource):
                     meta.duration = duration
                 if start_year is not None:
                     meta.start_year = start_year
+                if titles:
+                    meta.titles = titles
 
             if special_episodes:
                 specials_meta = store.get("anidb", anidb_id, scope="S")
@@ -279,6 +283,23 @@ class AnimeAggregationsSource(IdMappingSource, MetadataSource):
 
         most_common, _count = Counter(lengths).most_common(1)[0]
         return most_common
+
+    @staticmethod
+    def _extract_titles(
+        raw_titles: list[dict[str, Any]] | None,
+    ) -> tuple[str, ...] | None:
+        """Extract MAIN and OFFICIAL titles from the titles payload."""
+        if not raw_titles:
+            return None
+        selected: list[str] = []
+        for item in raw_titles:
+            title_type = item.get("type", "")
+            if title_type not in ("MAIN", "OFFICIAL"):
+                continue
+            title = item.get("title", "")
+            if title:
+                selected.append(title)
+        return normalize_titles(selected) or None
 
     @staticmethod
     def _extract_start_year(entry: dict[str, Any]) -> int | None:
