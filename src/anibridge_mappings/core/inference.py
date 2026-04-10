@@ -87,24 +87,46 @@ def _select_inference_pairs(
         if not pair_scores:
             continue
 
-        best_right_for_left = _unique_best_matches(pair_scores, pick_left=True)
-        best_left_for_right = _unique_best_matches(pair_scores, pick_left=False)
+        # Iteratively select mutual-best pairs, removing matched nodes each
+        # round so remaining candidates can find their next-best partner.
+        matched_left: set[IdNode] = set()
+        matched_right: set[IdNode] = set()
+        remaining = list(pair_scores)
 
-        for _score, node_left, node_right, episode_range in sorted(
-            pair_scores,
-            key=lambda item: (
-                -item[0],
-                item[1][1],
-                "" if item[1][2] is None else item[1][2],
-                item[2][1],
-                "" if item[2][2] is None else item[2][2],
-            ),
-        ):
-            if best_right_for_left.get(node_left) != node_right:
-                continue
-            if best_left_for_right.get(node_right) != node_left:
-                continue
-            inferred_pairs.append((node_left, node_right, episode_range))
+        while remaining:
+            best_right_for_left = _unique_best_matches(remaining, pick_left=True)
+            best_left_for_right = _unique_best_matches(remaining, pick_left=False)
+
+            round_pairs: list[tuple[float, IdNode, IdNode, str]] = []
+            for _score, node_left, node_right, episode_range in sorted(
+                remaining,
+                key=lambda item: (
+                    -item[0],
+                    item[1][1],
+                    "" if item[1][2] is None else item[1][2],
+                    item[2][1],
+                    "" if item[2][2] is None else item[2][2],
+                ),
+            ):
+                if best_right_for_left.get(node_left) != node_right:
+                    continue
+                if best_left_for_right.get(node_right) != node_left:
+                    continue
+                round_pairs.append((_score, node_left, node_right, episode_range))
+
+            if not round_pairs:
+                break
+
+            for _score, node_left, node_right, episode_range in round_pairs:
+                inferred_pairs.append((node_left, node_right, episode_range))
+                matched_left.add(node_left)
+                matched_right.add(node_right)
+
+            remaining = [
+                p
+                for p in remaining
+                if p[1] not in matched_left and p[2] not in matched_right
+            ]
 
     return inferred_pairs
 
