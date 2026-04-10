@@ -194,7 +194,12 @@ def _duration_score(left: SourceMeta, right: SourceMeta) -> float | None:
     """Return a compatibility bonus for runtime alignment."""
     left_duration, right_duration = left.duration, right.duration
     if left_duration and right_duration:
-        return 0.1 if _relative_delta(left_duration, right_duration) <= 0.1 else None
+        delta = _relative_delta(left_duration, right_duration)
+        if delta <= 0.1:
+            return 0.1
+        if delta <= 0.25:
+            return 0.0
+        return None
     return 0.0
 
 
