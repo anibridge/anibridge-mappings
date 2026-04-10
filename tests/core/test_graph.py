@@ -100,3 +100,38 @@ def test_episode_graph_add_graph_merges_edges() -> None:
 
     assert g1.has_edge(left, right)
     assert len(g1.provenance_items()) == 1
+
+
+def test_episode_graph_transitive_edges_allow_multi_entry_scopes() -> None:
+    """Multi-entry scopes (e.g. a TVDB season containing many anime) should not
+    have their transitive edges blocked by the single-entry conflict check."""
+    graph = EpisodeMappingGraph()
+
+    # Shinkro-like: MAL entries -> different episodes in the same TVDB season
+    mal_a = ("mal", "100", None, "1")
+    tvdb_ep1 = ("tvdb_show", "72775", "s0", "1")
+    mal_b = ("mal", "200", None, "1")
+    tvdb_ep2 = ("tvdb_show", "72775", "s0", "2")
+
+    graph.add_edge(mal_a, tvdb_ep1)
+    graph.add_edge(mal_b, tvdb_ep2)
+
+    # AniList = MAL edges (from inference/ID graph)
+    al_a = ("anilist", "100", None, "1")
+    al_b = ("anilist", "200", None, "1")
+    graph.add_edge(al_a, mal_a)
+    graph.add_edge(al_b, mal_b)
+
+    # Inference adds one anilist -> tvdb edge directly
+    graph.add_edge(al_a, tvdb_ep1)
+
+    ctx = ProvenanceContext(stage="transitive", actor="engine")
+    added = graph.add_transitive_edges(provenance=ctx)
+
+    # al_b -> tvdb_ep2 should be added transitively despite tvdb_show:72775:s0
+    # already mapping to anilist:100. The scope is multi-entry.
+    assert graph.has_edge(al_b, tvdb_ep2), (
+        "Multi-entry scope tvdb_show:72775:s0 should allow transitive edges "
+        "to different anilist entries at different episodes"
+    )
+    assert added >= 1

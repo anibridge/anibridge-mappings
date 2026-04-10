@@ -353,10 +353,7 @@ class EpisodeMappingGraph(_BaseGraph[EpisodeNode]):
         Returns:
             int: Number of new edges added.
         """
-        existing_scope_pairs = self._build_scope_pair_index()
-        scope_provider_entries = self._build_scope_provider_entry_index(
-            existing_scope_pairs
-        )
+        scope_pairs, exclusive = self._build_transitive_indexes()
 
         visited: set[EpisodeNode] = set()
         added = 0
@@ -384,12 +381,12 @@ class EpisodeMappingGraph(_BaseGraph[EpisodeNode]):
                         pair in blocked_scope_pairs or rpair in blocked_scope_pairs
                     ):
                         continue
-                    if pair in existing_scope_pairs or rpair in existing_scope_pairs:
+                    if pair in scope_pairs or rpair in scope_pairs:
                         continue
-                    if self._would_conflict_provider_entry(
-                        src_scope, target, scope_provider_entries
-                    ) or self._would_conflict_provider_entry(
-                        tgt_scope, source, scope_provider_entries
+                    src_exc = exclusive.get((src_scope, target[0]))
+                    tgt_exc = exclusive.get((tgt_scope, source[0]))
+                    if (src_exc and src_exc != target[1]) or (
+                        tgt_exc and tgt_exc != source[1]
                     ):
                         continue
                     self.add_edge(
@@ -401,44 +398,41 @@ class EpisodeMappingGraph(_BaseGraph[EpisodeNode]):
                     added += 1
         return added
 
-    def _build_scope_pair_index(
+    def _build_transitive_indexes(
         self,
-    ) -> set[tuple[tuple[str, str, str | None], tuple[str, str, str | None]]]:
-        """Return scope pairs that already have at least one direct edge."""
-        pairs: set[tuple[tuple[str, str, str | None], tuple[str, str, str | None]]] = (
-            set()
-        )
-        for node in self.nodes():
-            src_scope = node[:3]
-            for neighbor in self._adj.get(node, set()):
-                tgt_scope = neighbor[:3]
-                if src_scope != tgt_scope:
-                    pairs.add((src_scope, tgt_scope))
-        return pairs
+    ) -> tuple[
+        set[tuple[tuple[str, str, str | None], tuple[str, str, str | None]]],
+        dict[tuple[tuple[str, str, str | None], str], str],
+    ]:
+        """Build indexes for transitive closure.
 
-    @staticmethod
-    def _build_scope_provider_entry_index(
-        existing_scope_pairs: set[
+        Returns:
+            A tuple of:
+            - scope_pairs: scope pairs that already have at least one direct edge.
+            - exclusive: map of (scope, provider) to the sole entry ID when exactly
+              one entry exists. Multi-entry scopes (e.g. TVDB seasons spanning many
+              anime) are omitted entirely so they never block transitive edges.
+        """
+        scope_pairs: set[
             tuple[tuple[str, str, str | None], tuple[str, str, str | None]]
-        ],
-    ) -> dict[tuple[tuple[str, str, str | None], str], set[str]]:
-        """Map (source_scope, target_provider) to the set of target entry IDs."""
-        index: dict[tuple[tuple[str, str, str | None], str], set[str]] = {}
-        for src_scope, tgt_scope in existing_scope_pairs:
-            index.setdefault((src_scope, tgt_scope[0]), set()).add(tgt_scope[1])
-            index.setdefault((tgt_scope, src_scope[0]), set()).add(src_scope[1])
-        return index
+        ] = set()
+        entries: dict[tuple[tuple[str, str, str | None], str], set[str]] = {}
+        for node in self.nodes():
+            src = node[:3]
+            for neighbor in self._adj.get(node, set()):
+                tgt = neighbor[:3]
+                if src != tgt:
+                    scope_pairs.add((src, tgt))
+                    entries.setdefault((src, tgt[0]), set()).add(tgt[1])
+                    entries.setdefault((tgt, src[0]), set()).add(src[1])
 
-    @staticmethod
-    def _would_conflict_provider_entry(
-        scope: tuple[str, str, str | None],
-        candidate: EpisodeNode,
-        index: dict[tuple[tuple[str, str, str | None], str], set[str]],
-    ) -> bool:
-        """Return True when adding candidate would introduce a cross-ID conflict."""
-        key = (scope, candidate[0])
-        existing = index.get(key)
-        return existing is not None and candidate[1] not in existing
+        multi = {scope for (scope, _), ids in entries.items() if len(ids) > 1}
+        exclusive = {
+            k: next(iter(v))
+            for k, v in entries.items()
+            if len(v) == 1 and k[0] not in multi
+        }
+        return scope_pairs, exclusive
 
     def get_component_by_provider(
         self, start: EpisodeNode

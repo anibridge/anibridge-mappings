@@ -87,9 +87,17 @@ def _select_inference_pairs(
                     continue
                 pair_scores.append((score, node_left, node_right, episode_range))
 
-        # Build best-score lookup per node; mark ambiguous nodes (tied top score
-        # with different partners) so they are excluded from matching.
-        ambiguous = _ambiguous_nodes(pair_scores)
+        # Identify ambiguous nodes: those whose top score is tied across
+        # different partners. These are excluded from greedy matching.
+        best: dict[IdNode, tuple[float, IdNode | None]] = {}
+        for score, node_left, node_right, _ep in pair_scores:
+            for key_node, other in ((node_left, node_right), (node_right, node_left)):
+                cur = best.get(key_node)
+                if cur is None or score > cur[0]:
+                    best[key_node] = (score, other)
+                elif score == cur[0] and cur[1] != other:
+                    best[key_node] = (score, None)
+        ambiguous = {n for n, (_, partner) in best.items() if partner is None}
 
         # Greedy: sort by score descending, pick best unmatched pairs
         pair_scores.sort(
@@ -113,22 +121,6 @@ def _select_inference_pairs(
             matched_right.add(node_right)
 
     return result
-
-
-def _ambiguous_nodes(
-    pair_scores: list[tuple[float, IdNode, IdNode, str]],
-) -> set[IdNode]:
-    """Return nodes whose top score is shared by more than one partner."""
-    best: dict[IdNode, tuple[float, IdNode | None]] = {}
-    for score, node_left, node_right, _ep in pair_scores:
-        for key_node, other_node in ((node_left, node_right), (node_right, node_left)):
-            current = best.get(key_node)
-            if current is None or score > current[0]:
-                best[key_node] = (score, other_node)
-            elif score == current[0] and current[1] != other_node:
-                best[key_node] = (score, None)  # ambiguous
-
-    return {node for node, (_, partner) in best.items() if partner is None}
 
 
 def _merge_context(base: SourceMeta, related: list[SourceMeta]) -> SourceMeta:
