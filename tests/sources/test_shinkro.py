@@ -9,7 +9,6 @@ from anibridge_mappings.sources.shinkro import (
 def test_base_shinkro_normalizers() -> None:
     assert BaseShinkroMappingSource._normalize_id("12") == "12"
     assert BaseShinkroMappingSource._normalize_id("0") is None
-    assert BaseShinkroMappingSource._normalize_positive_int(3) == "3"
 
 
 def test_shinkro_tvdb_helpers_and_graphs() -> None:

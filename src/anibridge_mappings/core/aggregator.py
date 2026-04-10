@@ -4,7 +4,7 @@ import asyncio
 import importlib.metadata
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime
 from logging import getLogger
 from typing import Any
 
@@ -16,6 +16,7 @@ from anibridge_mappings.core.graph import (
 )
 from anibridge_mappings.core.inference import infer_episode_mappings
 from anibridge_mappings.core.meta import MetaStore
+from anibridge_mappings.core.provenance import _normalize_timestamp
 from anibridge_mappings.core.validators import (
     MappingRangeValidator,
     MappingValidator,
@@ -49,6 +50,7 @@ from anibridge_mappings.sources.tvdb import TvdbMovieSource, TvdbShowSource
 from anibridge_mappings.utils.mapping import (
     build_source_target_map,
     collapse_source_mappings,
+    format_descriptor,
     ordered_payload,
     parse_descriptor,
     provider_scope_sort_key,
@@ -363,21 +365,6 @@ def _episode_source_contributor(source: EpisodeMappingSource) -> str:
     return f"{module_name}:{class_name}"
 
 
-def mapping_descriptor(provider: str, entry_id: str, scope: str | None) -> str:
-    """Return the schema descriptor `provider:entry_id[:scope]` string.
-
-    Args:
-        provider (str): The provider name.
-        entry_id (str): The entry ID.
-        scope (str | None): Optional scope; omitted when `None`.
-
-    Returns:
-        str: The combined mapping descriptor.
-    """
-    base = f"{provider}:{entry_id}"
-    return base if scope is None else f"{base}:{scope}"
-
-
 def build_schema_payload(
     episode_graph: EpisodeMappingGraph,
     *,
@@ -407,23 +394,23 @@ def build_schema_payload(
     source_map = build_source_target_map(episode_graph)
     for source_scope, targets in sorted(
         source_map.items(),
-        key=lambda item: provider_scope_sort_key(mapping_descriptor(*item[0])),
+        key=lambda item: provider_scope_sort_key(format_descriptor(*item[0])),
     ):
         source_provider, source_id, source_scope_value = source_scope
-        source_descriptor = mapping_descriptor(
+        source_descriptor = format_descriptor(
             source_provider, source_id, source_scope_value
         )
         collapsed_targets: dict[str, dict[str, str]] = {}
         for target_scope, source_ranges in sorted(
             targets.items(),
-            key=lambda item: provider_scope_sort_key(mapping_descriptor(*item[0])),
+            key=lambda item: provider_scope_sort_key(format_descriptor(*item[0])),
         ):
             target_provider, target_id, target_scope_value = target_scope
             collapsed = collapse_source_mappings(source_ranges)
             if not collapsed:
                 continue
             collapsed_targets[
-                mapping_descriptor(target_provider, target_id, target_scope_value)
+                format_descriptor(target_provider, target_id, target_scope_value)
             ] = collapsed
         if collapsed_targets:
             payload[source_descriptor] = collapsed_targets
@@ -431,13 +418,6 @@ def build_schema_payload(
     payload = ordered_payload(payload)
 
     return payload
-
-
-def _normalize_timestamp(value: datetime | None) -> str:
-    """Normalize a datetime into a UTC ISO-8601 string."""
-    moment = value or datetime.now(UTC)
-    iso = moment.replace(microsecond=0).isoformat()
-    return iso.replace("+00:00", "Z") if iso.endswith("+00:00") else iso
 
 
 def default_aggregator() -> MappingAggregator:

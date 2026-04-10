@@ -58,18 +58,7 @@ class BaseShinkroMappingSource(BaseSource):
 
     @staticmethod
     def _normalize_id(value: Any) -> str | None:
-        """Normalize an ID to a positive numeric string."""
-        try:
-            num = int(value)
-        except TypeError, ValueError:
-            return None
-        if num <= 0:
-            return None
-        return str(num)
-
-    @staticmethod
-    def _normalize_positive_int(value: Any) -> str | None:
-        """Normalize an integer to a positive numeric string."""
+        """Normalize a value to a positive numeric string."""
         try:
             num = int(value)
         except TypeError, ValueError:
@@ -107,7 +96,7 @@ class ShinkroTvdbMappingSource(
 
         for entry in self._require_entries():
             mal_id = self._normalize_id(entry.get("malid"))
-            tvdb_id = self._normalize_positive_int(entry.get("tvdbid"))
+            tvdb_id = self._normalize_id(entry.get("tvdbid"))
             if not mal_id or not tvdb_id:
                 continue
 
@@ -142,7 +131,7 @@ class ShinkroTvdbMappingSource(
 
         for entry in self._require_entries():
             mal_id = self._normalize_id(entry.get("malid"))
-            tvdb_id = self._normalize_positive_int(entry.get("tvdbid"))
+            tvdb_id = self._normalize_id(entry.get("tvdbid"))
             if not mal_id or not tvdb_id:
                 continue
 
@@ -372,7 +361,7 @@ class ShinkroTmdbMappingSource(
 
         for entry in self._require_entries():
             mal_id = self._normalize_id(entry.get("malid"))
-            tmdb_id = self._normalize_positive_int(entry.get("tmdbid"))
+            tmdb_id = self._normalize_id(entry.get("tmdbid"))
             if not mal_id or not tmdb_id:
                 continue
 
@@ -401,7 +390,7 @@ class ShinkroTmdbMappingSource(
 
         for entry in self._require_entries():
             mal_id = self._normalize_id(entry.get("malid"))
-            tmdb_id = self._normalize_positive_int(entry.get("tmdbid"))
+            tmdb_id = self._normalize_id(entry.get("tmdbid"))
             if not mal_id or not tmdb_id:
                 continue
 

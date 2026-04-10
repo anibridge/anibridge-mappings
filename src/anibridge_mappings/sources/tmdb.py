@@ -14,25 +14,10 @@ from anibridge_mappings.sources.base import CachedMetadataSource
 log = getLogger(__name__)
 
 
-class TmdbShowSource(CachedMetadataSource):
-    """Collect TMDB episode counts for IDs already present in the ID graph."""
+class BaseTmdbSource(CachedMetadataSource):
+    """Shared base for TMDB metadata sources."""
 
     API_ROOT = "https://api.themoviedb.org/3"
-    CACHE_VERSION = 4
-    provider_key = "tmdb_show"
-    cache_filename = "tmdb_show.json"
-
-    def __init__(self, concurrency: int = 6) -> None:
-        """Initialize the TmdbSource with a specific concurrency level.
-
-        Args:
-            concurrency (int): Maximum concurrent fetches.
-
-        Returns:
-            None: This function does not return a value.
-        """
-        super().__init__(concurrency=concurrency)
-        self._show_cache: dict[str, dict[str | None, SourceMeta] | None] = {}
 
     async def prepare(self) -> None:
         """Load cache data and validate TMDB authentication configuration."""
@@ -42,14 +27,8 @@ class TmdbShowSource(CachedMetadataSource):
     @staticmethod
     @cache
     def _get_token() -> str | None:
-        """Read the TMDB bearer token from `TMDB_API_KEY`.
-
-        Returns None when not configured so the pipeline can still run (e.g. PRs).
-        """
-        token = os.environ.get("TMDB_API_KEY")
-        if not token:
-            return None
-        return token
+        """Read the TMDB bearer token from `TMDB_API_KEY`."""
+        return os.environ.get("TMDB_API_KEY") or None
 
     @classmethod
     def _require_token(cls) -> str:
@@ -68,6 +47,47 @@ class TmdbShowSource(CachedMetadataSource):
                 "Authorization": f"Bearer {token}",
             }
         }
+
+    async def _request_json(
+        self,
+        session: aiohttp.ClientSession,
+        url: str,
+        label: str,
+    ) -> tuple[dict[str, Any] | None, bool]:
+        """Request a TMDB payload with rate-limit handling."""
+        while True:
+            async with session.get(url) as response:
+                if response.status == 429:
+                    retry = int(response.headers.get("Retry-After", "2"))
+                    log.warning("TMDB rate limit hit for %s; sleeping %s", label, retry)
+                    await asyncio.sleep(retry + 1)
+                    continue
+
+                if response.status == 404:
+                    log.warning("TMDB resource %s not found", label)
+                    return None, True
+
+                try:
+                    response.raise_for_status()
+                except aiohttp.ClientResponseError as exc:
+                    log.error("TMDB request failed for %s: %s", label, exc)
+                    return None, False
+
+                payload: dict[str, Any] = await response.json()
+                return payload, True
+
+
+class TmdbShowSource(BaseTmdbSource):
+    """Collect TMDB episode counts for IDs already present in the ID graph."""
+
+    CACHE_VERSION = 4
+    provider_key = "tmdb_show"
+    cache_filename = "tmdb_show.json"
+
+    def __init__(self, concurrency: int = 6) -> None:
+        """Initialize the TmdbSource with a specific concurrency level."""
+        super().__init__(concurrency=concurrency)
+        self._show_cache: dict[str, dict[str | None, SourceMeta] | None] = {}
 
     async def _fetch_entry(
         self,
@@ -141,29 +161,9 @@ class TmdbShowSource(CachedMetadataSource):
         base_id: str,
     ) -> tuple[dict[str, Any] | None, bool]:
         """Request a TMDB show payload with rate-limit handling."""
-        url = f"{self.API_ROOT}/tv/{base_id}"
-        while True:
-            async with session.get(url) as response:
-                if response.status == 429:
-                    retry = int(response.headers.get("Retry-After", "2"))
-                    log.warning(
-                        "TMDB rate limit hit for %s; sleeping %s", base_id, retry
-                    )
-                    await asyncio.sleep(retry + 1)
-                    continue
-
-                if response.status == 404:
-                    log.warning("TMDB show %s not found", base_id)
-                    return None, True
-
-                try:
-                    response.raise_for_status()
-                except aiohttp.ClientResponseError as exc:
-                    log.error("TMDB request failed for %s: %s", base_id, exc)
-                    return None, False
-
-                payload: dict[str, Any] = await response.json()
-                return payload, True
+        return await self._request_json(
+            session, f"{self.API_ROOT}/tv/{base_id}", f"show {base_id}"
+        )
 
     async def _fill_missing_start_years(
         self,
@@ -186,39 +186,20 @@ class TmdbShowSource(CachedMetadataSource):
     ) -> int | None:
         """Fetch a season's earliest episode air year from TMDB."""
         url = f"{self.API_ROOT}/tv/{base_id}/season/{season_number}"
-        while True:
-            async with session.get(url) as response:
-                if response.status == 429:
-                    retry = int(response.headers.get("Retry-After", "2"))
-                    log.warning(
-                        "TMDB rate limit hit for %s/season/%s; sleeping %s",
-                        base_id,
-                        season_number,
-                        retry,
-                    )
-                    await asyncio.sleep(retry + 1)
-                    continue
+        payload, _cacheable = await self._request_json(
+            session, url, f"show {base_id}/season/{season_number}"
+        )
+        if payload is None:
+            return None
 
-                if response.status == 404:
-                    return None
-
-                try:
-                    response.raise_for_status()
-                except aiohttp.ClientResponseError:
-                    return None
-
-                payload: dict[str, Any] = await response.json()
-                episodes = payload.get("episodes") or []
-
-                min_year: int | None = None
-                for ep in episodes:
-                    air_date = ep.get("air_date") or ""
-                    if air_date[:4].isdigit():
-                        year = int(air_date[:4])
-                        if min_year is None or year < min_year:
-                            min_year = year
-
-                return min_year
+        min_year: int | None = None
+        for ep in payload.get("episodes") or []:
+            air_date = ep.get("air_date") or ""
+            if air_date[:4].isdigit():
+                year = int(air_date[:4])
+                if min_year is None or year < min_year:
+                    min_year = year
+        return min_year
 
     @staticmethod
     def _scope_from_season(season_number: int) -> str:
@@ -226,32 +207,12 @@ class TmdbShowSource(CachedMetadataSource):
         return f"s{season_number}"
 
 
-class TmdbMovieSource(CachedMetadataSource):
+class TmdbMovieSource(BaseTmdbSource):
     """Collect TMDB movie metadata for IDs already present in the ID graph."""
 
-    API_ROOT = TmdbShowSource.API_ROOT
     CACHE_VERSION = 1
     provider_key = "tmdb_movie"
     cache_filename = "tmdb_movie.json"
-
-    def __init__(self, concurrency: int = 6) -> None:
-        """Initialize the TmdbMovieSource with a specific concurrency level."""
-        super().__init__(concurrency=concurrency)
-
-    async def prepare(self) -> None:
-        """Load cache data and validate TMDB authentication configuration."""
-        await super().prepare()
-        TmdbShowSource._require_token()
-
-    def _session_kwargs(self) -> dict[str, Any]:
-        """Return aiohttp session settings for TMDB requests."""
-        token = TmdbShowSource._require_token()
-        return {
-            "headers": {
-                "Accept": "application/json",
-                "Authorization": f"Bearer {token}",
-            }
-        }
 
     async def _fetch_entry(
         self,
@@ -261,7 +222,8 @@ class TmdbMovieSource(CachedMetadataSource):
     ) -> tuple[str, dict[str | None, SourceMeta] | None, bool]:
         """Fetch TMDB metadata for a single movie entry."""
         del scope
-        payload, cacheable = await self._request_movie_payload(session, entry_id)
+        url = f"{self.API_ROOT}/movie/{entry_id}"
+        payload, cacheable = await self._request_json(session, url, f"movie {entry_id}")
         if payload is None:
             return entry_id, None, cacheable
 
@@ -292,35 +254,3 @@ class TmdbMovieSource(CachedMetadataSource):
             },
             cacheable,
         )
-
-    async def _request_movie_payload(
-        self,
-        session: aiohttp.ClientSession,
-        base_id: str,
-    ) -> tuple[dict[str, Any] | None, bool]:
-        """Request a TMDB movie payload with rate-limit handling."""
-        url = f"{self.API_ROOT}/movie/{base_id}"
-        while True:
-            async with session.get(url) as response:
-                if response.status == 429:
-                    retry = int(response.headers.get("Retry-After", "2"))
-                    log.warning(
-                        "TMDB rate limit hit for movie %s; sleeping %s",
-                        base_id,
-                        retry,
-                    )
-                    await asyncio.sleep(retry + 1)
-                    continue
-
-                if response.status == 404:
-                    log.warning("TMDB movie %s not found", base_id)
-                    return None, True
-
-                try:
-                    response.raise_for_status()
-                except aiohttp.ClientResponseError as exc:
-                    log.error("TMDB movie request failed for %s: %s", base_id, exc)
-                    return None, False
-
-                payload: dict[str, Any] = await response.json()
-                return payload, True

@@ -66,12 +66,10 @@ class SourceMeta:
     def merged_with(self, other: SourceMeta) -> SourceMeta:
         """Merge `other` into `self`, with `other` values taking precedence."""
         return SourceMeta(
-            type=other.type if other.type is not None else self.type,
-            episodes=other.episodes if other.episodes is not None else self.episodes,
-            duration=other.duration if other.duration is not None else self.duration,
-            start_year=(
-                other.start_year if other.start_year is not None else self.start_year
-            ),
+            type=other.type or self.type,
+            episodes=other.episodes or self.episodes,
+            duration=other.duration or self.duration,
+            start_year=other.start_year or self.start_year,
             titles=normalize_titles((*self.titles, *other.titles)),
         )
 
@@ -101,12 +99,6 @@ class MetaStore:
         """Initialize the metadata store."""
         self._store: dict[tuple[str, str, str | None], SourceMeta] = {}
 
-    def _key(
-        self, provider: str, entry_id: str, scope: str | None
-    ) -> tuple[str, str, str | None]:
-        """Return a normalized key tuple for metadata lookups."""
-        return (provider, entry_id, scope)
-
     def get(
         self,
         provider: str,
@@ -123,9 +115,7 @@ class MetaStore:
         Returns:
             SourceMeta: Mutable metadata instance for the entry.
         """
-        return self._store.setdefault(
-            self._key(provider, entry_id, scope), SourceMeta()
-        )
+        return self._store.setdefault((provider, entry_id, scope), SourceMeta())
 
     def peek(
         self,
@@ -143,7 +133,7 @@ class MetaStore:
         Returns:
             SourceMeta | None: Stored metadata or `None` when missing.
         """
-        return self._store.get(self._key(provider, entry_id, scope))
+        return self._store.get((provider, entry_id, scope))
 
     def set(
         self,
@@ -160,7 +150,7 @@ class MetaStore:
             meta (SourceMeta): Metadata object to store verbatim.
             scope (str | None): Optional season/scope identifier.
         """
-        self._store[self._key(provider, entry_id, scope)] = meta
+        self._store[(provider, entry_id, scope)] = meta
 
     def update(
         self,

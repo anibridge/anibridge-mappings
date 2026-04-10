@@ -98,9 +98,8 @@ def test_tmdb_fetch_entry_returns_scope_meta_bundle(monkeypatch) -> None:
 def test_tmdb_movie_fetch_entry_parses_movie_payload(monkeypatch) -> None:
     source = TmdbMovieSource()
 
-    async def _fake_request(session, base_id):
-        del session
-        assert base_id == "128"
+    async def _fake_request(session, url, label):
+        del session, url, label
         return (
             {
                 "title": "Princess Mononoke",
@@ -111,7 +110,7 @@ def test_tmdb_movie_fetch_entry_parses_movie_payload(monkeypatch) -> None:
             True,
         )
 
-    monkeypatch.setattr(source, "_request_movie_payload", _fake_request)
+    monkeypatch.setattr(source, "_request_json", _fake_request)
 
     class _FakeSession:
         pass

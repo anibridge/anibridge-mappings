@@ -1,5 +1,6 @@
 """Stats building for the aggregation pipeline."""
 
+from collections import defaultdict
 from typing import Any
 
 import orjson
@@ -11,9 +12,44 @@ from anibridge_mappings.utils.mapping import parse_descriptor
 
 def _count_edges(graph: _BaseGraph) -> int:
     """Return edge counts derived from graph adjacency."""
-    nodes = graph.nodes()
-    link_count = sum(len(graph.neighbors(node)) for node in nodes)
-    return link_count
+    return sum(len(graph.neighbors(node)) for node in graph.nodes())
+
+
+class _ProviderAccumulator:
+    """Tracks per-provider stats during payload traversal."""
+
+    __slots__ = (
+        "descriptors",
+        "ids",
+        "scopes",
+        "source_descriptors",
+        "source_ranges",
+        "target_descriptors",
+        "target_ranges",
+    )
+
+    def __init__(self) -> None:
+        self.descriptors: set[tuple[str, str | None]] = set()
+        self.ids: set[str] = set()
+        self.scopes: set[str | None] = set()
+        self.source_descriptors: set[str] = set()
+        self.target_descriptors: set[str] = set()
+        self.source_ranges: int = 0
+        self.target_ranges: int = 0
+
+    def to_dict(self) -> dict[str, int]:
+        src = len(self.source_descriptors)
+        tgt = len(self.target_descriptors)
+        return {
+            "distinct_descriptors": len(self.descriptors),
+            "distinct_ids": len(self.ids),
+            "distinct_scopes": len(self.scopes),
+            "source_descriptors": src,
+            "target_descriptors": tgt,
+            "descriptors": src + tgt,
+            "source_range_units": self.source_ranges,
+            "target_range_units": self.target_ranges,
+        }
 
 
 def _compact_count(value: int) -> str:
@@ -53,17 +89,7 @@ def build_stats(
     meta_store = artifacts.meta_store
     issues = artifacts.validation_issues
 
-    provider_stats: dict[str, dict[str, int]] = {}
-    descriptor_sets: dict[str, set[tuple[str, str | None]]] = {}
-    id_sets: dict[str, set[str]] = {}
-    scope_sets: dict[str, set[str | None]] = {}
-    source_descriptor_sets: dict[str, set[str]] = {}
-    target_descriptor_sets: dict[str, set[str]] = {}
-    source_descriptor_counts: dict[str, int] = {}
-    target_descriptor_counts: dict[str, int] = {}
-    source_range_counts: dict[str, int] = {}
-    target_range_counts: dict[str, int] = {}
-
+    providers: dict[str, _ProviderAccumulator] = defaultdict(_ProviderAccumulator)
     source_descriptors_total = 0
     target_descriptors_total = 0
     source_ranges_total = 0
@@ -78,13 +104,11 @@ def build_stats(
             src_provider, src_id, src_scope = parse_descriptor(source_descriptor)
         except ValueError:
             continue
-        descriptor_sets.setdefault(src_provider, set()).add((src_id, src_scope))
-        id_sets.setdefault(src_provider, set()).add(src_id)
-        scope_sets.setdefault(src_provider, set()).add(src_scope)
-        source_descriptor_sets.setdefault(src_provider, set()).add(source_descriptor)
-        source_descriptor_counts[src_provider] = (
-            source_descriptor_counts.get(src_provider, 0) + 1
-        )
+        acc = providers[src_provider]
+        acc.descriptors.add((src_id, src_scope))
+        acc.ids.add(src_id)
+        acc.scopes.add(src_scope)
+        acc.source_descriptors.add(source_descriptor)
         source_descriptors_total += 1
 
         for target_descriptor, range_map in targets.items():
@@ -93,52 +117,27 @@ def build_stats(
                 tgt_provider, tgt_id, tgt_scope = parse_descriptor(target_descriptor)
             except ValueError:
                 continue
-            descriptor_sets.setdefault(tgt_provider, set()).add((tgt_id, tgt_scope))
-            id_sets.setdefault(tgt_provider, set()).add(tgt_id)
-            scope_sets.setdefault(tgt_provider, set()).add(tgt_scope)
-            target_descriptor_sets.setdefault(tgt_provider, set()).add(
-                target_descriptor
-            )
-            target_descriptor_counts[tgt_provider] = (
-                target_descriptor_counts.get(tgt_provider, 0) + 1
-            )
+            tacc = providers[tgt_provider]
+            tacc.descriptors.add((tgt_id, tgt_scope))
+            tacc.ids.add(tgt_id)
+            tacc.scopes.add(tgt_scope)
+            tacc.target_descriptors.add(target_descriptor)
             target_descriptors_total += 1
 
             source_range_units = len(range_map)
-            source_range_counts[src_provider] = (
-                source_range_counts.get(src_provider, 0) + source_range_units
-            )
+            acc.source_ranges += source_range_units
             source_ranges_total += source_range_units
 
             for target_spec in range_map.values():
                 segments = [
                     seg.strip() for seg in str(target_spec).split(",") if seg.strip()
                 ]
-                target_range_counts[tgt_provider] = target_range_counts.get(
-                    tgt_provider, 0
-                ) + len(segments)
+                tacc.target_ranges += len(segments)
                 target_ranges_total += len(segments)
 
-    for provider in set(
-        list(descriptor_sets)
-        + list(id_sets)
-        + list(scope_sets)
-        + list(source_descriptor_counts)
-        + list(target_descriptor_counts)
-        + list(source_range_counts)
-        + list(target_range_counts)
-        + list(source_descriptor_sets)
-        + list(target_descriptor_sets)
-    ):
-        stats = provider_stats.setdefault(provider, {})
-        stats["distinct_descriptors"] = len(descriptor_sets.get(provider, set()))
-        stats["distinct_ids"] = len(id_sets.get(provider, set()))
-        stats["distinct_scopes"] = len(scope_sets.get(provider, set()))
-        stats["source_descriptors"] = source_descriptor_counts.get(provider, 0)
-        stats["target_descriptors"] = target_descriptor_counts.get(provider, 0)
-        stats["descriptors"] = stats["source_descriptors"] + stats["target_descriptors"]
-        stats["source_range_units"] = source_range_counts.get(provider, 0)
-        stats["target_range_units"] = target_range_counts.get(provider, 0)
+    provider_stats = {
+        provider: acc.to_dict() for provider, acc in sorted(providers.items())
+    }
 
     validator_counts: dict[str, int] = {}
     source_provider_counts: dict[str, int] = {}
@@ -190,9 +189,7 @@ def build_stats(
     stats_payload: dict[str, Any] = {
         "meta": payload.get("$meta", {}),
         "summary": summary,
-        "providers": {
-            provider: provider_stats[provider] for provider in sorted(provider_stats)
-        },
+        "providers": provider_stats,
         "validator": {
             "total_issues": len(issues),
             "by_validator": dict(sorted(validator_counts.items())),

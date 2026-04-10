@@ -4,18 +4,18 @@ from datetime import UTC, datetime
 from anibridge_mappings.core.aggregator import (
     MappingAggregator,
     _episode_source_contributor,
-    _normalize_timestamp,
     _validation_prune_reason,
     build_schema_payload,
-    mapping_descriptor,
 )
 from anibridge_mappings.core.graph import EpisodeMappingGraph, IdMappingGraph
 from anibridge_mappings.core.meta import MetaStore
+from anibridge_mappings.core.provenance import _normalize_timestamp
 from anibridge_mappings.core.validators import (
     MappingValidator,
     ValidationContext,
     ValidationIssue,
 )
+from anibridge_mappings.utils.mapping import format_descriptor
 
 
 class StubSource:
@@ -80,7 +80,7 @@ def test_schema_payload_and_descriptor_helpers() -> None:
     assert payload["$meta"]["schema_version"] == "1.0.0"
     assert "anidb:1:R" in payload
 
-    assert mapping_descriptor("anidb", "1", "R") == "anidb:1:R"
+    assert format_descriptor("anidb", "1", "R") == "anidb:1:R"
     assert _normalize_timestamp(datetime(2024, 1, 1, tzinfo=UTC)).endswith("Z")
 
 

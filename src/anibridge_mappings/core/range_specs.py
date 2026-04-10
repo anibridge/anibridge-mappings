@@ -1,5 +1,6 @@
 """Range parsing helpers."""
 
+import math
 from dataclasses import dataclass
 
 from anibridge.utils.mappings import (
@@ -117,7 +118,7 @@ def merge_segments(
 
     normalized = sorted(
         segments,
-        key=lambda seg: (seg.start, 10**9 if seg.end is None else seg.end),
+        key=lambda seg: (seg.start, math.inf if seg.end is None else seg.end),
     )
     merged: list[AnibridgeMappingRange] = [normalized[0]]
     for segment in normalized[1:]:
@@ -145,14 +146,14 @@ def has_internal_overlap(spec: TargetSpec) -> bool:
         return False
     sorted_segments = sorted(
         spec.segments,
-        key=lambda seg: (seg.start, float("inf") if seg.end is None else seg.end),
+        key=lambda seg: (seg.start, math.inf if seg.end is None else seg.end),
     )
     prev = sorted_segments[0]
     for current in sorted_segments[1:]:
         if ranges_overlap(prev.start, prev.end, current.start, current.end):
             return True
-        prev_end_value = float("inf") if prev.end is None else prev.end
-        current_end_value = float("inf") if current.end is None else current.end
+        prev_end_value = math.inf if prev.end is None else prev.end
+        current_end_value = math.inf if current.end is None else current.end
         if current_end_value > prev_end_value:
             prev = current
     return False

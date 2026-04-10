@@ -3,10 +3,10 @@ from anibridge_mappings.core.meta import MetaStore, SourceMeta, SourceType
 from anibridge_mappings.core.validators import (
     MappingRangeValidator,
     ValidationContext,
-    _descriptor,
     _iter_target_ranges,
     _spec_overlaps,
 )
+from anibridge_mappings.utils.mapping import format_descriptor
 
 
 def test_validator_flags_same_provider_cross_link_and_limits() -> None:
@@ -30,7 +30,7 @@ def test_validator_flags_same_provider_cross_link_and_limits() -> None:
 def test_validator_internal_helpers() -> None:
     source_ranges = {"1": {"2", "3"}}
     assert list(_iter_target_ranges(source_ranges)) == [("1", "2"), ("1", "3")]
-    assert _descriptor("anidb", "1", "R") == "anidb:1:R"
+    assert format_descriptor("anidb", "1", "R") == "anidb:1:R"
 
     left = MappingRangeValidator().validate
     assert callable(left)

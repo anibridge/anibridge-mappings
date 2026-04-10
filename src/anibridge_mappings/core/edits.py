@@ -185,8 +185,7 @@ def _build_scope_index(
     """Index nodes by scope for faster edits application."""
     index: dict[Scope, set[tuple[str, str, str | None, str]]] = {}
     for node in graph.nodes():
-        scope = (node[0], node[1], node[2])
-        index.setdefault(scope, set()).add(node)
+        index.setdefault(node[:3], set()).add(node)
     return index
 
 

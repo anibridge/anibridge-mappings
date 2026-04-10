@@ -115,32 +115,23 @@ class CachedMetadataSource(MetadataSource):
         missing: list[tuple[str, str | None]] = []
         for entry_id, scope in entry_ids:
             cache_key = entry_id if scope is None else f"{entry_id}|{scope}"
-            base_key = entry_id
 
             if cache_key in self._cache:
-                # Exact scoped cache hit
                 self._ingest(store, entry_id, self._cache[cache_key])
                 continue
 
-            base_cached = self._cache.get(base_key, None)
-            if base_key in self._cache:
-                if base_cached is None:
-                    # Previously confirmed missing (e.g. 404)
-                    self._ingest(store, entry_id, None)
-                    continue
-
-                if isinstance(base_cached, dict):
-                    if scope is None:
-                        self._ingest(store, entry_id, base_cached)
-                        continue
-
+            if entry_id in self._cache:
+                base_cached = self._cache[entry_id]
+                if base_cached is None or scope is None:
+                    self._ingest(store, entry_id, base_cached)
+                else:
                     scoped_meta = base_cached.get(scope)
                     self._ingest(
                         store,
                         entry_id,
-                        None if scoped_meta is None else {scope: scoped_meta},
+                        {scope: scoped_meta} if scoped_meta else None,
                     )
-                    continue
+                continue
 
             missing.append((entry_id, scope))
 

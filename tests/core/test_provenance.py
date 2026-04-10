@@ -8,7 +8,6 @@ from anibridge_mappings.core.graph import EpisodeMappingGraph, ProvenanceContext
 from anibridge_mappings.core.provenance import (
     _active_mapping_contributors,
     _active_ranges,
-    _descriptor,
     _event_contributor,
     _event_payload,
     _mapping_contributors,
@@ -16,6 +15,7 @@ from anibridge_mappings.core.provenance import (
     validate_provenance_payload,
     write_provenance_payload,
 )
+from anibridge_mappings.utils.mapping import format_descriptor
 
 
 def _sample_graph() -> EpisodeMappingGraph:
@@ -35,8 +35,8 @@ def _sample_graph() -> EpisodeMappingGraph:
 
 
 def test_descriptor_helpers() -> None:
-    assert _descriptor("anidb", "1", None) == "anidb:1"
-    assert _descriptor("anidb", "1", "R") == "anidb:1:R"
+    assert format_descriptor("anidb", "1", None) == "anidb:1"
+    assert format_descriptor("anidb", "1", "R") == "anidb:1:R"
 
 
 def test_event_helpers_extract_contributors() -> None:

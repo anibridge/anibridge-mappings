@@ -203,10 +203,9 @@ class AnimeAggregationsSource(IdMappingSource, MetadataSource):
             return []
         return sorted(
             {
-                normalized_id
+                nid
                 for entry in imdb_entries
-                for normalized_id in [normalize_imdb_id(entry)]
-                if normalized_id is not None
+                if (nid := normalize_imdb_id(entry)) is not None
             }
         )
 
