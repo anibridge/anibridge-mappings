@@ -264,7 +264,7 @@ class AnimeAggregationsSource(IdMappingSource, MetadataSource):
 
     @staticmethod
     def _extract_duration(episodes_payload: dict[str, Any] | None) -> int | None:
-        """Return the most common episode duration (minutes) when available."""
+        """Return the most common episode duration in seconds."""
         if not episodes_payload:
             return None
 
@@ -282,7 +282,7 @@ class AnimeAggregationsSource(IdMappingSource, MetadataSource):
             return None
 
         most_common, _count = Counter(lengths).most_common(1)[0]
-        return most_common
+        return most_common * 60
 
     @staticmethod
     def _extract_titles(
