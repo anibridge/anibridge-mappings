@@ -34,6 +34,7 @@ from anibridge_mappings.sources.base import (
     IdMappingSource,
     MetadataSource,
 )
+from anibridge_mappings.sources.mal import MalSource
 from anibridge_mappings.sources.qlever import (
     QleverImdbMovieSource,
     QleverImdbShowSource,
@@ -446,6 +447,7 @@ def default_aggregator() -> MappingAggregator:
         MappingAggregator: Configured aggregator instance.
     """
     anilist = AnilistSource()
+    mal = MalSource()
     anime_aggregations = AnimeAggregationsSource()
     anime_lists = AnimeListsSource()
     anime_offline_db = AnimeOfflineDatabaseSource()
@@ -465,6 +467,7 @@ def default_aggregator() -> MappingAggregator:
             anime_offline_db,
             anilist,
             anime_aggregations,
+            mal,
             qlever_imdb_movie,
             qlever_imdb_show,
             tmdb_show,

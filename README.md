@@ -45,6 +45,7 @@ Note: releases are updated daily and tagged with a `v{major}` version, where bre
 | [varoOP/shinkro-mapping](https://github.com/varoOP/shinkro-mapping)                               | No       | Yes         | Yes              | MAL, TMDB, TVDB                       |
 | [QLever](https://qlever.dev/)                                                                     | Yes      | Yes         | No               | AniDB, AniList, IMDB, MAL, TMDB, TVDB |
 | [AniList GraphQL](https://anilist.co)                                                             | Yes      | Not Yet     | No               | AniList                               |
+| [MyAnimeList API](https://myanimelist.net/apiconfig/references/api/v2)                            | Yes      | No          | No               | MAL                                   |
 | [TMDB API](https://www.themoviedb.org/documentation/api)                                          | Yes      | No          | No               | TMDB                                  |
 | [TVDB API](https://thetvdb.com/api-information)                                                   | Yes      | No          | No               | TVDB                                  |
 
@@ -150,7 +151,7 @@ Options:
 - `--provenance`: emit `provenance.zip` containing `manifest.json`, `descriptor-index.json`, and `descriptors/*.json` files
 - `--log-level`: set logging verbosity (default: `INFO`)
 
-_Note: TMDB and TVDB metadata fetching require API tokens set in `TMDB_API_KEY` and `TVDB_API_KEY` environment variables. Without it, Metadata fetching will be skipped._
+_Note: TMDB, TVDB, and MAL metadata fetching require authentication in `TMDB_API_KEY`, `TVDB_API_KEY`, and `MAL_API_KEY`. MAL uses public OAuth refresh auth with `MAL_CLIENT_ID` and a refresh token stored in `MAL_API_KEY`._
 
 ## Contributing
 
