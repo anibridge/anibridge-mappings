@@ -157,7 +157,11 @@ def _merge_context(base: SourceMeta, related: list[SourceMeta]) -> SourceMeta:
 
 
 def _match_score(left: SourceMeta, right: SourceMeta) -> float | None:
-    if left.type != right.type or left.episodes != right.episodes:
+    if left.episodes != right.episodes:
+        return None
+
+    type_score = _type_score(left, right)
+    if type_score is None:
         return None
 
     title_score = _title_score(left, right)
@@ -172,8 +176,18 @@ def _match_score(left: SourceMeta, right: SourceMeta) -> float | None:
     if duration_score is None:
         return None
 
-    score = title_score + year_score + duration_score
+    score = title_score + year_score + duration_score + type_score
     return score if score >= _MIN_INFERENCE_SCORE else None
+
+
+def _type_score(left: SourceMeta, right: SourceMeta) -> float | None:
+    """Return a compatibility bonus/penalty for type alignment."""
+    if left.type is None or right.type is None:
+        return 0.0
+    if left.type == right.type:
+        return 0.1
+    # tv <-> movie mismatch: penalize but don't reject outright
+    return -0.2
 
 
 def _year_score(left: SourceMeta, right: SourceMeta) -> float | None:
