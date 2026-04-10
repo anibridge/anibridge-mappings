@@ -26,11 +26,6 @@ const isDev = () => {
   }
 };
 
-const getLocalFsUrl = (relativePath: string, requestUrl: string) => {
-  const filePath = new URL(relativePath, import.meta.url).pathname;
-  return new URL(`/@fs${filePath}`, requestUrl);
-};
-
 const normalizeText = (value: string | undefined) =>
   (value ?? "").trim().toLowerCase();
 
@@ -39,69 +34,18 @@ const toNumber = (value: string | undefined, fallback: number) => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
-const getMappings = async (requestUrl?: string): Promise<MappingsPayload> => {
+const getMappings = async (): Promise<MappingsPayload> => {
   const EDGE_CACHE_TTL = 6 * 60 * 60;
 
   if (!mappingsPromise) {
     mappingsPromise = (async () => {
-      if (isDev()) {
-        if (!requestUrl) {
-          throw new Error(
-            "requestUrl is required in DEV to resolve local mappings.",
-          );
-        }
-
-        const localUrl = getLocalFsUrl(
-          "../../data/out/mappings.json",
-          requestUrl,
-        );
-        let res: Response | null = null;
-        try {
-          const localResponse = await fetch(localUrl.toString(), {
-            headers: { Accept: "application/json" },
-          });
-          if (localResponse.ok) {
-            res = localResponse;
-          } else {
-            console.warn(
-              "Local mappings.json fetch returned non-OK status; falling back to release artifact",
-              {
-                status: localResponse.status,
-                statusText: localResponse.statusText,
-                url: localUrl.toString(),
-              },
-            );
-          }
-        } catch (error) {
-          console.warn(
-            "Local mappings.json fetch failed; falling back to release artifact",
-            {
-              url: localUrl.toString(),
-              error: error instanceof Error ? error.message : String(error),
-            },
-          );
-        }
-
-        if (!res) {
-          res = await fetch(MAPPINGS_URL, {
-            headers: { Accept: "application/json" },
-          });
-        }
-
-        if (!res.ok) {
-          throw new Error(
-            `Failed to fetch mappings: ${res.status} ${res.statusText}`,
-          );
-        }
-
-        return (await res.json()) as MappingsPayload;
-      }
-
       const init: RequestInit & {
         cf?: { cacheTtl?: number; cacheEverything?: boolean };
       } = {
         headers: { Accept: "application/json" },
-        cf: { cacheTtl: EDGE_CACHE_TTL, cacheEverything: true },
+        ...(!isDev() && {
+          cf: { cacheTtl: EDGE_CACHE_TTL, cacheEverything: true },
+        }),
       };
 
       const res = await fetch(MAPPINGS_URL, init);
@@ -123,62 +67,13 @@ const getMappings = async (requestUrl?: string): Promise<MappingsPayload> => {
 
 app.get("/data/provenance.zip", async (c) => {
   try {
-    if (isDev()) {
-      const localUrl = getLocalFsUrl(
-        "../../data/out/provenance.zip",
-        c.req.url,
-      );
-      let upstream: Response | null = null;
-      try {
-        const localResponse = await fetch(localUrl.toString(), {
-          headers: { Accept: "application/zip" },
-        });
-        if (localResponse.ok) {
-          upstream = localResponse;
-        } else {
-          console.warn(
-            "Local provenance.zip fetch returned non-OK status; falling back to release artifact",
-            {
-              status: localResponse.status,
-              statusText: localResponse.statusText,
-              url: localUrl.toString(),
-            },
-          );
-        }
-      } catch (error) {
-        console.warn(
-          "Local provenance.zip fetch failed; falling back to release artifact",
-          {
-            url: localUrl.toString(),
-            error: error instanceof Error ? error.message : String(error),
-          },
-        );
-      }
-
-      if (!upstream) {
-        upstream = await fetch(PROVENANCE_URL, {
-          headers: { Accept: "application/zip" },
-        });
-      }
-
-      const headers = new Headers(upstream.headers);
-      headers.set("Access-Control-Allow-Origin", "*");
-      headers.set("Cache-Control", "no-store");
-      headers.set("Vary", "Origin");
-
-      return new Response(await upstream.arrayBuffer(), {
-        status: upstream.status,
-        headers,
-      });
-    }
-
     const upstream = await fetch(PROVENANCE_URL, {
       headers: { Accept: "application/zip" },
     });
 
     const headers = new Headers(upstream.headers);
     headers.set("Access-Control-Allow-Origin", "*");
-    headers.set("Cache-Control", "public, max-age=3600");
+    headers.set("Cache-Control", isDev() ? "no-store" : "public, max-age=3600");
     headers.set("Vary", "Origin");
 
     return new Response(await upstream.arrayBuffer(), {
@@ -226,10 +121,10 @@ const mappingsRoute = createRoute({
   },
 });
 
-const getSourceIndex = async (requestUrl: string) => {
+const getSourceIndex = async () => {
   if (!sourceIndexPromise) {
     sourceIndexPromise = (async () => {
-      const mappings = await getMappings(requestUrl);
+      const mappings = await getMappings();
       const index: SourceIndex = new Map();
 
       for (const source of Object.keys(mappings)) {
@@ -267,7 +162,6 @@ const getSourceIndex = async (requestUrl: string) => {
 };
 
 app.openapi(mappingsRoute, async (c) => {
-  const requestUrl = c.req.url;
   const query = c.req.query();
   const providerQuery = normalizeText(query.provider);
   const idQuery = normalizeText(query.id);
@@ -275,8 +169,8 @@ app.openapi(mappingsRoute, async (c) => {
   const limit = Math.max(1, Math.min(toNumber(query.limit, 50), 1000));
   const offset = Math.max(0, toNumber(query.offset, 0));
 
-  const mappings = await getMappings(requestUrl);
-  const index = await getSourceIndex(requestUrl);
+  const mappings = await getMappings();
+  const index = await getSourceIndex();
   const response: Record<string, Record<string, Record<string, string>>> = {};
   let total = 0;
   let added = 0;
