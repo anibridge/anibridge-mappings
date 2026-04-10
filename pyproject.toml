@@ -1,6 +1,6 @@
 [project]
 name = "anibridge-mappings"
-version = "3.0.1"
+version = "3.0.2"
 description = "Anime mappings for the AniBridge project."
 license = "MIT"
 license-files = ["LICENSE"]
