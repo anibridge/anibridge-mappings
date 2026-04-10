@@ -20,7 +20,7 @@ class TmdbShowSource(CachedMetadataSource):
     API_ROOT = "https://api.themoviedb.org/3"
     CACHE_VERSION = 4
     provider_key = "tmdb_show"
-    cache_filename = "tmdb_meta.json"
+    cache_filename = "tmdb_show.json"
 
     def __init__(self, concurrency: int = 6) -> None:
         """Initialize the TmdbSource with a specific concurrency level.

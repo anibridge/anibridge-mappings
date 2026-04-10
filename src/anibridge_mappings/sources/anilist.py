@@ -20,7 +20,7 @@ class AnilistSource(CachedMetadataSource):
     CACHE_VERSION = 2
 
     provider_key = "anilist"
-    cache_filename = "anilist_meta.json"
+    cache_filename = "anilist.json"
 
     def __init__(self, batch_size: int = BATCH_SIZE) -> None:
         """Initialize the AnilistSource.
