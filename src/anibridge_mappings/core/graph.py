@@ -8,7 +8,7 @@ from typing import Any
 
 
 class _BaseGraph[NodeT]:
-    """Lightweight undirected graph."""
+    """Lightweight directed graph (edges are bidirectional by default)."""
 
     def __init__(self) -> None:
         """Initialize empty adjacency map."""
@@ -37,8 +37,8 @@ class _BaseGraph[NodeT]:
             self._adj[b].add(a)
 
     def has_edge(self, a: NodeT, b: NodeT) -> bool:
-        """Check if an edge exists between `a` and `b`."""
-        return b in self._adj.get(a, set()) or a in self._adj.get(b, set())
+        """Check if a directed edge exists from `a` to `b`."""
+        return b in self._adj.get(a, set())
 
     def add_equivalence_class(self, nodes: Iterable[NodeT]) -> None:
         """Add an undirected equivalence class of nodes."""
@@ -67,11 +67,11 @@ class _BaseGraph[NodeT]:
         """Return the neighbor set for a node."""
         return self._adj.get(node, set()).copy()
 
-    def remove_edge(self, a: NodeT, b: NodeT) -> None:
-        """Remove an edge between `a` and `b` if present (both directions)."""
+    def remove_edge(self, a: NodeT, b: NodeT, bidirectional: bool = True) -> None:
+        """Remove an edge from `a` to `b`."""
         if a in self._adj:
             self._adj[a].discard(b)
-        if b in self._adj:
+        if bidirectional and b in self._adj:
             self._adj[b].discard(a)
 
     def get_component(self, start: NodeT) -> set[NodeT]:
@@ -198,6 +198,7 @@ class EpisodeMappingGraph(_BaseGraph[EpisodeNode]):
         if details:
             merged_details = {**(merged_details or {}), **details}
         self._provenance_seq += 1
+        key = self._edge_key(a, b)
         event = ProvenanceEvent(
             seq=self._provenance_seq,
             action=action,
@@ -207,7 +208,6 @@ class EpisodeMappingGraph(_BaseGraph[EpisodeNode]):
             effective=effective,
             details=merged_details,
         )
-        key = self._edge_key(a, b)
         self._provenance.setdefault(key, []).append(event)
 
     def add_edge(
@@ -228,7 +228,7 @@ class EpisodeMappingGraph(_BaseGraph[EpisodeNode]):
             provenance (ProvenanceContext | None): Context for the addition.
             details (dict[str, Any] | None): Additional details for the event.
         """
-        existed = self.has_edge(a, b)
+        existed = self.has_edge(a, b) or self.has_edge(b, a)
         super().add_edge(a, b, bidirectional=bidirectional)
         self._record_event(
             "add",
@@ -243,20 +243,14 @@ class EpisodeMappingGraph(_BaseGraph[EpisodeNode]):
         self,
         a: EpisodeNode,
         b: EpisodeNode,
+        bidirectional: bool = True,
         *,
         provenance: ProvenanceContext | None = None,
         details: dict[str, Any] | None = None,
     ) -> None:
-        """Remove an edge between `a` and `b` if present (both directions).
-
-        Args:
-            a (EpisodeNode): Start node.
-            b (EpisodeNode): End node.
-            provenance (ProvenanceContext | None): Context for the removal.
-            details (dict[str, Any] | None): Additional details for the event.
-        """
-        existed = self.has_edge(a, b)
-        super().remove_edge(a, b)
+        """Remove an edge between `a` and `b` with provenance."""
+        existed = self.has_edge(a, b) or self.has_edge(b, a)
+        super().remove_edge(a, b, bidirectional=bidirectional)
         self._record_event(
             "remove",
             a,
@@ -327,7 +321,7 @@ class EpisodeMappingGraph(_BaseGraph[EpisodeNode]):
 
     def is_edit_edge(self, a: EpisodeNode, b: EpisodeNode) -> bool:
         """Return True when the active edge state was added by an edit."""
-        if not self.has_edge(a, b):
+        if not self.has_edge(a, b) and not self.has_edge(b, a):
             return False
 
         edit = False

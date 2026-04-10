@@ -63,7 +63,7 @@ def test_build_validate_and_write_provenance_payload(tmp_path) -> None:
     assert payload["$meta"]["summary"]["events"] >= 1
     assert payload["$meta"]["format"] == "anibridge.provenance.v2"
     assert payload["dict"]["descriptors"] == ["anidb:1:R", "mal:2"]
-    assert len(payload["mappings"]) == 1
+    assert len(payload["mappings"]) == 2
 
     output = tmp_path / "prov.zip"
     write_provenance_payload(output, payload)

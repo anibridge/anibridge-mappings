@@ -9,22 +9,16 @@ from typing import Any
 import orjson
 
 from anibridge_mappings.core.graph import EpisodeMappingGraph, ProvenanceEvent
+from anibridge_mappings.utils.mapping import format_descriptor
 
 
 def _normalize_timestamp(value: datetime | None) -> str:
-    """Normalize a datetime to an ISO 8601 UTC string."""
-    if value is None:
-        value = datetime.now(tz=UTC)
-    if value.tzinfo is None:
-        value = value.replace(tzinfo=UTC)
-    return value.astimezone(UTC).isoformat()
-
-
-def _descriptor(provider: str, entry_id: str, scope: str | None) -> str:
-    """Build a unique descriptor string for a given ID with optional scope."""
-    if scope is None or scope == "":
-        return f"{provider}:{entry_id}"
-    return f"{provider}:{entry_id}:{scope}"
+    """Normalize a datetime into a UTC ISO-8601 string ending with Z."""
+    moment = value or datetime.now(tz=UTC)
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=UTC)
+    iso = moment.astimezone(UTC).replace(microsecond=0).isoformat()
+    return iso.replace("+00:00", "Z") if iso.endswith("+00:00") else iso
 
 
 def _event_payload(
@@ -119,21 +113,28 @@ def _active_mapping_contributors(events: list[dict[str, Any]]) -> list[str]:
     return sorted(set(active_pairs.values()))
 
 
-def _index_of_value(
-    value: str | None,
-    values: list[str],
-    index_map: dict[str, int],
-) -> int:
-    """Return a stable small-int index for a repeated string value."""
-    if value is None or value == "":
-        return -1
-    existing = index_map.get(value)
-    if existing is not None:
-        return existing
-    index = len(values)
-    values.append(value)
-    index_map[value] = index
-    return index
+class _StringInterner:
+    """Intern repeated strings to compact integer indices."""
+
+    __slots__ = ("_index", "values")
+
+    def __init__(self) -> None:
+        self.values: list[str] = []
+        self._index: dict[str, int] = {}
+
+    def intern(self, value: str | None) -> int:
+        if value is None or value == "":
+            return -1
+        existing = self._index.get(value)
+        if existing is not None:
+            return existing
+        index = len(self.values)
+        self.values.append(value)
+        self._index[value] = index
+        return index
+
+    def __len__(self) -> int:
+        return len(self.values)
 
 
 def build_provenance_payload(
@@ -149,35 +150,31 @@ def build_provenance_payload(
 
     pair_events: dict[tuple[str, str], list[dict[str, Any]]] = {}
 
-    for source, target, events in episode_graph.provenance_items():
-        src_provider, src_id, src_scope, src_range = source
-        tgt_provider, tgt_id, tgt_scope, tgt_range = target
-        src_descriptor = _descriptor(src_provider, src_id, src_scope)
-        tgt_descriptor = _descriptor(tgt_provider, tgt_id, tgt_scope)
-        left_descriptor, right_descriptor = sorted((src_descriptor, tgt_descriptor))
-        flip = src_descriptor != left_descriptor
+    for left_node, right_node, events in episode_graph.provenance_items():
+        left_provider, left_id, left_scope, left_range = left_node
+        right_provider, right_id, right_scope, right_range = right_node
+        left_desc = format_descriptor(left_provider, left_id, left_scope)
+        right_desc = format_descriptor(right_provider, right_id, right_scope)
+        a, b = sorted((left_desc, right_desc))
+        canonical_key = (a, b)
+
+        # Orient ranges so source_range belongs to descriptor `a`
+        flip = left_desc != a
 
         for event in sorted(events, key=lambda item: item.seq):
             payload = _event_payload(
                 event,
-                source_range=tgt_range if flip else src_range,
-                target_range=src_range if flip else tgt_range,
+                source_range=right_range if flip else left_range,
+                target_range=left_range if flip else right_range,
                 include_details=include_details,
             )
-            pair_events.setdefault((left_descriptor, right_descriptor), []).append(
-                payload
-            )
+            pair_events.setdefault(canonical_key, []).append(payload)
 
-    descriptors: list[str] = []
-    descriptor_index_map: dict[str, int] = {}
-    actions: list[str] = []
-    action_index_map: dict[str, int] = {}
-    stages: list[str] = []
-    stage_index_map: dict[str, int] = {}
-    actors: list[str] = []
-    actor_index_map: dict[str, int] = {}
-    reasons: list[str] = []
-    reason_index_map: dict[str, int] = {}
+    descriptors = _StringInterner()
+    actions = _StringInterner()
+    stages = _StringInterner()
+    actors = _StringInterner()
+    reasons = _StringInterner()
     ranges: list[dict[str, str]] = []
     range_index_map: dict[tuple[str, str], int] = {}
 
@@ -185,57 +182,76 @@ def build_provenance_payload(
     present_count = 0
     event_count = 0
 
-    for left_descriptor, right_descriptor in sorted(pair_events):
+    for canonical_key in sorted(pair_events):
+        left_desc, right_desc = canonical_key
         events = sorted(
-            pair_events[(left_descriptor, right_descriptor)],
+            pair_events[canonical_key],
             key=lambda item: item["seq"],
         )
         active_ranges = _active_ranges(events)
         present = bool(active_ranges)
         if present:
-            present_count += 1
-        event_count += len(events)
+            present_count += 2
+        event_count += len(events) * 2
 
-        compact_events: list[dict[str, Any]] = []
+        # Forward direction (left to right)
+        fwd_compact: list[dict[str, Any]] = []
         for event in events:
             range_key = (str(event["source_range"]), str(event["target_range"]))
             range_index = range_index_map.get(range_key)
             if range_index is None:
                 range_index = len(ranges)
-                ranges.append(
-                    {
-                        "s": range_key[0],
-                        "t": range_key[1],
-                    }
-                )
+                ranges.append({"s": range_key[0], "t": range_key[1]})
                 range_index_map[range_key] = range_index
-
-            compact_events.append(
+            fwd_compact.append(
                 {
-                    "a": _index_of_value(
-                        event.get("action"), actions, action_index_map
-                    ),
-                    "s": _index_of_value(event.get("stage"), stages, stage_index_map),
-                    "ac": _index_of_value(event.get("actor"), actors, actor_index_map),
-                    "rs": _index_of_value(
-                        event.get("reason"), reasons, reason_index_map
-                    ),
+                    "a": actions.intern(event.get("action")),
+                    "s": stages.intern(event.get("stage")),
+                    "ac": actors.intern(event.get("actor")),
+                    "rs": reasons.intern(event.get("reason")),
                     "r": range_index,
                     "e": bool(event.get("effective")),
                 }
             )
 
+        # Reverse direction (ranges swapped)
+        rev_compact: list[dict[str, Any]] = []
+        for event in events:
+            rev_key = (str(event["target_range"]), str(event["source_range"]))
+            rev_index = range_index_map.get(rev_key)
+            if rev_index is None:
+                rev_index = len(ranges)
+                ranges.append({"s": rev_key[0], "t": rev_key[1]})
+                range_index_map[rev_key] = rev_index
+            rev_compact.append(
+                {
+                    "a": actions.intern(event.get("action")),
+                    "s": stages.intern(event.get("stage")),
+                    "ac": actors.intern(event.get("actor")),
+                    "rs": reasons.intern(event.get("reason")),
+                    "r": rev_index,
+                    "e": bool(event.get("effective")),
+                }
+            )
+
+        left_idx = descriptors.intern(left_desc)
+        right_idx = descriptors.intern(right_desc)
         mappings.append(
             {
-                "s": _index_of_value(
-                    left_descriptor, descriptors, descriptor_index_map
-                ),
-                "t": _index_of_value(
-                    right_descriptor, descriptors, descriptor_index_map
-                ),
+                "s": left_idx,
+                "t": right_idx,
                 "p": present,
-                "n": len(compact_events),
-                "ev": compact_events,
+                "n": len(fwd_compact),
+                "ev": fwd_compact,
+            }
+        )
+        mappings.append(
+            {
+                "s": right_idx,
+                "t": left_idx,
+                "p": present,
+                "n": len(rev_compact),
+                "ev": rev_compact,
             }
         )
 
@@ -258,11 +274,11 @@ def build_provenance_payload(
             "summary": summary,
         },
         "dict": {
-            "descriptors": descriptors,
-            "actions": actions,
-            "stages": stages,
-            "actors": actors,
-            "reasons": reasons,
+            "descriptors": descriptors.values,
+            "actions": actions.values,
+            "stages": stages.values,
+            "actors": actors.values,
+            "reasons": reasons.values,
             "ranges": ranges,
         },
         "mappings": mappings,
@@ -271,54 +287,44 @@ def build_provenance_payload(
 
 def validate_provenance_payload(payload: dict[str, Any]) -> None:
     """Validate payload integrity for compact provenance data."""
-    meta = payload.get("$meta")
-    payload_dict = payload.get("dict")
-    mappings = payload.get("mappings")
 
-    if not isinstance(meta, dict):
-        raise ValueError("Provenance payload missing $meta object.")
-    if not isinstance(payload_dict, dict):
-        raise ValueError("Provenance payload missing dict object.")
-    if not isinstance(mappings, list):
-        raise ValueError("Provenance payload missing mappings list.")
+    def _require(value: Any, expected_type: type, label: str) -> Any:
+        if not isinstance(value, expected_type):
+            raise ValueError(
+                f"Provenance payload {label} must be a {expected_type.__name__}."
+            )
+        return value
 
-    summary = meta.get("summary")
-    if not isinstance(summary, dict):
-        raise ValueError("Provenance payload metadata missing summary object.")
+    meta = _require(payload.get("$meta"), dict, "$meta")
+    payload_dict = _require(payload.get("dict"), dict, "dict")
+    mappings = _require(payload.get("mappings"), list, "mappings")
+    summary = _require(meta.get("summary"), dict, "summary")
 
-    descriptors = payload_dict.get("descriptors")
-    actions = payload_dict.get("actions")
-    stages = payload_dict.get("stages")
-    actors = payload_dict.get("actors")
-    reasons = payload_dict.get("reasons")
-    ranges = payload_dict.get("ranges")
+    dict_lists = {}
+    for key in ("descriptors", "actions", "stages", "actors", "reasons", "ranges"):
+        dict_lists[key] = _require(payload_dict.get(key), list, f"dict.{key}")
 
-    if not isinstance(descriptors, list):
-        raise ValueError("Provenance payload descriptors must be a list.")
-    if not isinstance(actions, list):
-        raise ValueError("Provenance payload actions must be a list.")
-    if not isinstance(stages, list):
-        raise ValueError("Provenance payload stages must be a list.")
-    if not isinstance(actors, list):
-        raise ValueError("Provenance payload actors must be a list.")
-    if not isinstance(reasons, list):
-        raise ValueError("Provenance payload reasons must be a list.")
-    if not isinstance(ranges, list):
-        raise ValueError("Provenance payload ranges must be a list.")
+    descriptors = dict_lists["descriptors"]
+    actions = dict_lists["actions"]
+    ranges = dict_lists["ranges"]
 
-    expected_descriptors = int(summary.get("descriptors", -1))
-    expected_mappings = int(summary.get("mappings", -1))
-    expected_present = int(summary.get("present_mappings", -1))
-    expected_missing = int(summary.get("missing_mappings", -1))
-    expected_events = int(summary.get("events", -1))
-    expected_ranges = int(summary.get("ranges", -1))
+    expected = {
+        k: int(summary.get(k, -1))
+        for k in (
+            "descriptors",
+            "mappings",
+            "present_mappings",
+            "missing_mappings",
+            "events",
+            "ranges",
+        )
+    }
 
     actual_present = 0
     actual_events = 0
 
     for mapping in mappings:
-        if not isinstance(mapping, dict):
-            raise ValueError("Provenance mappings must contain objects.")
+        _require(mapping, dict, "mapping entry")
         source_index = int(mapping.get("s", -1))
         target_index = int(mapping.get("t", -1))
         if source_index < 0 or source_index >= len(descriptors):
@@ -326,9 +332,7 @@ def validate_provenance_payload(payload: dict[str, Any]) -> None:
         if target_index < 0 or target_index >= len(descriptors):
             raise ValueError(f"Mapping target index out of bounds: {target_index}")
 
-        events = mapping.get("ev")
-        if not isinstance(events, list):
-            raise ValueError("Provenance mapping events must be a list.")
+        events = _require(mapping.get("ev"), list, "mapping events")
         if int(mapping.get("n", -1)) != len(events):
             raise ValueError(
                 f"Mapping event count mismatch: {mapping.get('n')} != {len(events)}"
@@ -338,23 +342,17 @@ def validate_provenance_payload(payload: dict[str, Any]) -> None:
         active_ranges: set[int] = set()
 
         for event in events:
-            if not isinstance(event, dict):
-                raise ValueError("Compact provenance events must be objects.")
-
+            _require(event, dict, "event entry")
             for key, values, allow_missing in (
-                ("a", actions, False),
-                ("s", stages, False),
-                ("ac", actors, True),
-                ("rs", reasons, True),
+                ("a", dict_lists["actions"], False),
+                ("s", dict_lists["stages"], False),
+                ("ac", dict_lists["actors"], True),
+                ("rs", dict_lists["reasons"], True),
             ):
                 event_index = int(event.get(key, -1))
                 if allow_missing and event_index == -1:
                     continue
-                if event_index < 0:
-                    raise ValueError(
-                        f"Event index out of bounds for {key}: {event_index}"
-                    )
-                if event_index >= len(values):
+                if event_index < 0 or event_index >= len(values):
                     raise ValueError(
                         f"Event index out of bounds for {key}: {event_index}"
                     )
@@ -379,33 +377,20 @@ def validate_provenance_payload(payload: dict[str, Any]) -> None:
             actual_present += 1
 
     actual_mappings = len(mappings)
-    actual_missing = actual_mappings - actual_present
-
-    if expected_descriptors != len(descriptors):
-        raise ValueError(
-            f"Manifest descriptors mismatch: {expected_descriptors} != "
-            f"{len(descriptors)}"
-        )
-    if expected_mappings != actual_mappings:
-        raise ValueError(
-            f"Manifest mappings mismatch: {expected_mappings} != {actual_mappings}"
-        )
-    if expected_present != actual_present:
-        raise ValueError(
-            f"Manifest present mismatch: {expected_present} != {actual_present}"
-        )
-    if expected_missing != actual_missing:
-        raise ValueError(
-            f"Manifest missing mismatch: {expected_missing} != {actual_missing}"
-        )
-    if expected_events != actual_events:
-        raise ValueError(
-            f"Manifest events mismatch: {expected_events} != {actual_events}"
-        )
-    if expected_ranges != len(ranges):
-        raise ValueError(
-            f"Manifest ranges mismatch: {expected_ranges} != {len(ranges)}"
-        )
+    checks = {
+        "descriptors": (expected["descriptors"], len(descriptors)),
+        "mappings": (expected["mappings"], actual_mappings),
+        "present_mappings": (expected["present_mappings"], actual_present),
+        "missing_mappings": (
+            expected["missing_mappings"],
+            actual_mappings - actual_present,
+        ),
+        "events": (expected["events"], actual_events),
+        "ranges": (expected["ranges"], len(ranges)),
+    }
+    for label, (exp, actual) in checks.items():
+        if exp != actual:
+            raise ValueError(f"Manifest {label} mismatch: {exp} != {actual}")
 
 
 def write_provenance_payload(path: Path, payload: dict[str, Any]) -> None:

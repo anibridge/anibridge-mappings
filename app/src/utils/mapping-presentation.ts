@@ -4,6 +4,95 @@ import type { Dict, Mapping } from "./provenance";
 import { getDictValue, getRange } from "./provenance";
 import type { DiffLine, ExternalLink, MappingViewFormat, TimelineSlide } from "../components/ui-types";
 
+/** Parse "N" or "N-M" into [start, end]. Returns null for non-numeric keys. */
+const parseBounds = (s: string): [number, number] | null => {
+  const m = /^(\d+)(?:-(\d+))?$/.exec(s.trim());
+  if (!m) return null;
+  const lo = Number(m[1]);
+  const hi = m[2] !== undefined ? Number(m[2]) : lo;
+  return [lo, hi];
+};
+
+const fmtRange = (lo: number, hi: number): string =>
+  lo === hi ? `${lo}` : `${lo}-${hi}`;
+
+const collapseRanges = (
+  ranges: Record<string, string>,
+): Record<string, string> => {
+  type NumRun = { ss: number; se: number; value: string };
+  const numRuns: NumRun[] = [];
+  let pass1Other: Record<string, string> = {};
+
+  for (const [src, tgt] of Object.entries(ranges)) {
+    const sb = parseBounds(src);
+    if (!sb) {
+      pass1Other[src] = tgt;
+      continue;
+    }
+    numRuns.push({ ss: sb[0], se: sb[1], value: tgt });
+  }
+
+  let pass1: Record<string, string>;
+  if (!numRuns.length) {
+    pass1 = ranges;
+  } else {
+    numRuns.sort((a, b) => a.ss - b.ss || a.se - b.se);
+    pass1 = {};
+    let run = numRuns[0];
+    for (let i = 1; i < numRuns.length; i++) {
+      const cur = numRuns[i];
+      if (cur.value === run.value && cur.ss === run.se + 1) {
+        run = { ...run, se: cur.se };
+      } else {
+        pass1[fmtRange(run.ss, run.se)] = run.value;
+        run = cur;
+      }
+    }
+    pass1[fmtRange(run.ss, run.se)] = run.value;
+    Object.assign(pass1, pass1Other);
+  }
+
+  type LinRun = { ss: number; se: number; ts: number; te: number };
+  const linRuns: LinRun[] = [];
+  const passthrough: Record<string, string> = {};
+
+  for (const [src, tgt] of Object.entries(pass1)) {
+    const sb = parseBounds(src);
+    const tb = parseBounds(tgt);
+    if (!sb || !tb) {
+      passthrough[src] = tgt;
+      continue;
+    }
+    linRuns.push({ ss: sb[0], se: sb[1], ts: tb[0], te: tb[1] });
+  }
+
+  if (!linRuns.length) return pass1;
+
+  linRuns.sort((a, b) => a.ss - b.ss || a.se - b.se || a.ts - b.ts);
+  const merged: Record<string, string> = {};
+  let cur = linRuns[0];
+  let offset = cur.ts - cur.ss;
+
+  for (let i = 1; i < linRuns.length; i++) {
+    const next = linRuns[i];
+    const nextOffset = next.ts - next.ss;
+    if (
+      next.ss === cur.se + 1 &&
+      next.ts === cur.te + 1 &&
+      nextOffset === offset
+    ) {
+      cur = { ...cur, se: next.se, te: next.te };
+    } else {
+      merged[fmtRange(cur.ss, cur.se)] = fmtRange(cur.ts, cur.te);
+      cur = next;
+      offset = nextOffset;
+    }
+  }
+  merged[fmtRange(cur.ss, cur.se)] = fmtRange(cur.ts, cur.te);
+  Object.assign(merged, passthrough);
+  return merged;
+};
+
 const EXTERNAL_SITES = {
   anidb: {
     label: "AniDB",
@@ -78,7 +167,7 @@ export const buildTimelineSlides = (dict: Dict, mapping: Mapping): TimelineSlide
   const events = mapping.ev ?? [];
   if (!events.length) return [];
 
-  const activeRanges = new Map<string, string>();
+  const activeRanges = new Set<string>();
   const sourceDescriptor = getDictValue(dict, "descriptors", mapping.s) || "-";
   const targetDescriptor = getDictValue(dict, "descriptors", mapping.t) || "-";
   let previousJson = JSON.stringify({ [sourceDescriptor]: { [targetDescriptor]: {} } }, null, 2);
@@ -93,19 +182,20 @@ export const buildTimelineSlides = (dict: Dict, mapping: Mapping): TimelineSlide
     const targetRange = range.target_range || "-";
 
     if (event.e) {
+      const pairKey = `${sourceRange}\0${targetRange}`;
       if (action === "add") {
-        activeRanges.set(sourceRange, targetRange);
+        activeRanges.add(pairKey);
       }
-      if (action === "remove" && activeRanges.get(sourceRange) === targetRange) {
-        activeRanges.delete(sourceRange);
+      if (action === "remove") {
+        activeRanges.delete(pairKey);
       }
     }
 
-    const orderedRanges = Object.fromEntries(
-      [...activeRanges.entries()]
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([source, target]) => [source, target]),
-    );
+    const orderedRanges = collapseRanges(Object.fromEntries(
+      [...activeRanges]
+        .map(k => k.split('\0') as [string, string])
+        .sort(([a], [b]) => a.localeCompare(b)),
+    ));
 
     const currentJson = JSON.stringify(
       { [sourceDescriptor]: { [targetDescriptor]: orderedRanges } },
@@ -140,7 +230,7 @@ export const stepLabel = (step: number, total: number) => `Step ${step} / ${tota
 export const buildFinalMappingObject = (dict: Dict, mapping: Mapping) => {
   const sourceDescriptor = getDictValue(dict, "descriptors", mapping.s) || "-";
   const targetDescriptor = getDictValue(dict, "descriptors", mapping.t) || "-";
-  const activeRanges = new Map<string, string>();
+  const activeRanges = new Set<string>();
 
   for (const event of mapping.ev ?? []) {
     if (!event.e) continue;
@@ -148,20 +238,21 @@ export const buildFinalMappingObject = (dict: Dict, mapping: Mapping) => {
     const range = getRange(dict, event.r);
     const sourceRange = range.source_range || "-";
     const targetRange = range.target_range || "-";
+    const pairKey = `${sourceRange}\0${targetRange}`;
 
     if (action === "add") {
-      activeRanges.set(sourceRange, targetRange);
+      activeRanges.add(pairKey);
     }
-    if (action === "remove" && activeRanges.get(sourceRange) === targetRange) {
-      activeRanges.delete(sourceRange);
+    if (action === "remove") {
+      activeRanges.delete(pairKey);
     }
   }
 
-  const orderedRanges = Object.fromEntries(
-    [...activeRanges.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([source, target]) => [source, target]),
-  );
+  const orderedRanges = collapseRanges(Object.fromEntries(
+    [...activeRanges]
+      .map(k => k.split('\0') as [string, string])
+      .sort(([a], [b]) => a.localeCompare(b)),
+  ));
 
   return { [sourceDescriptor]: { [targetDescriptor]: orderedRanges } };
 };
