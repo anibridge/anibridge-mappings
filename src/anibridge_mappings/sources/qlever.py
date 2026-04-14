@@ -96,7 +96,7 @@ class BaseQleverImdbSource(MetadataSource):
                 params = {"query": query, "format": "json"}
                 async with session.get(self.ENDPOINT_URL, params=params) as response:
                     response.raise_for_status()
-                    payload: dict[str, Any] = await response.json()
+                    payload: dict[str, Any] = await response.json(content_type=None)
 
                 bindings = payload.get("results", {}).get("bindings")
                 if not isinstance(bindings, list):
@@ -271,7 +271,7 @@ class QleverWikidataSource(IdMappingSource):
     """Emit AniList-centered ID links derived from Wikidata."""
 
     # https://query.wikidata.org/sparql (robots policy blocking usage)
-    ENDPOINT_URL = "https://qlever.dev/api/wikidata"
+    ENDPOINT_URL = "https://qlever-backend.wmcloud.org"
     QUERY = """
     # PREFIX statements are only required for qlever.dev
     PREFIX wd: <http://www.wikidata.org/entity/>
@@ -322,7 +322,7 @@ class QleverWikidataSource(IdMappingSource):
             session.get(self.ENDPOINT_URL, params=params) as response,
         ):
             response.raise_for_status()
-            payload: dict[str, Any] = await response.json()
+            payload: dict[str, Any] = await response.json(content_type=None)
 
         bindings = payload.get("results", {}).get("bindings")
         if not isinstance(bindings, list):
