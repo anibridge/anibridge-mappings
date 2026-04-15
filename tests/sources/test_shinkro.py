@@ -76,3 +76,47 @@ def test_shinkro_tmdb_graphs() -> None:
 
     ep_graph = source.build_episode_graph(MetaStore(), id_graph)
     assert ep_graph.has_edge(("tmdb_movie", "77", None, "1"), ("mal", "9", None, "1"))
+
+
+def test_shinkro_tvdb_start_zero_matches_start_one() -> None:
+    source = ShinkroTvdbMappingSource()
+    source._prepared = True
+    source._entries = [
+        {
+            "malid": "500",
+            "tvdbid": "600",
+            "tvdbseason": 0,
+            "start": 0,
+            "useMapping": False,
+        },
+        {
+            "malid": "501",
+            "tvdbid": "601",
+            "tvdbseason": 0,
+            "start": 1,
+            "useMapping": False,
+        },
+    ]
+
+    id_graph = source.build_id_graph()
+    store = MetaStore()
+    store.set("tvdb_show", "600", SourceMeta(type=SourceType.TV, episodes=40), "s0")
+    store.set("tvdb_show", "601", SourceMeta(type=SourceType.TV, episodes=40), "s0")
+    store.set("mal", "500", SourceMeta(type=SourceType.TV, episodes=2))
+    store.set("mal", "501", SourceMeta(type=SourceType.TV, episodes=2))
+
+    ep_graph = source.build_episode_graph(store, id_graph)
+
+    # start=0 is treated as first episode, same as start=1.
+    assert ep_graph.has_edge(
+        ("mal", "500", None, "1-2"), ("tvdb_show", "600", "s0", "1-2")
+    )
+    assert ep_graph.has_edge(
+        ("mal", "501", None, "1-2"), ("tvdb_show", "601", "s0", "1-2")
+    )
+
+    # It should not expand to a full TVDB season range when MAL has fewer episodes.
+    assert not ep_graph.has_edge(
+        ("mal", "500", None, "1-2"),
+        ("tvdb_show", "600", "s0", "1-40"),
+    )

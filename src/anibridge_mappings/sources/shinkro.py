@@ -165,19 +165,16 @@ class ShinkroTvdbMappingSource(
 
                 start = self._normalize_start(entry.get("start"))
 
-                if start > 0:
-                    mal_total = self._mal_total(store, mal_id)
-                    if mal_total is None:
-                        continue
-                    pairs = [(start + i, i + 1) for i in range(mal_total)]
+                tvdb_start = start if start > 0 else 1
+
+                mal_total = self._mal_total(store, mal_id)
+                if mal_total is not None:
+                    pairs = [(tvdb_start + i, i + 1) for i in range(mal_total)]
                 else:
-                    total = self._season_total(
-                        store, tvdb_id, season
-                    ) or self._mal_total(store, mal_id)
+                    total = self._season_total(store, tvdb_id, season)
                     if total is None:
                         continue
-
-                    pairs = self._range_pairs(0, total, set())
+                    pairs = [(tvdb_start + i, i + 1) for i in range(total)]
 
                 self._add_pairs(graph, tvdb_id, season, mal_id, pairs)
 
@@ -268,16 +265,16 @@ class ShinkroTvdbMappingSource(
 
         for tvdb_start, tvdb_end, mal_start, mal_end in segments:
             source_node = (
-                "tvdb_show",
-                tvdb_id,
-                scope,
-                self._format_episode_label(tvdb_start, tvdb_end),
-            )
-            target_node = (
                 "mal",
                 mal_id,
                 None,
                 self._format_episode_label(mal_start, mal_end),
+            )
+            target_node = (
+                "tvdb_show",
+                tvdb_id,
+                scope,
+                self._format_episode_label(tvdb_start, tvdb_end),
             )
             graph.add_edge(source_node, target_node)
 
