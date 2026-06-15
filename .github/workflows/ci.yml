@@ -262,6 +262,7 @@ jobs:
     if: ${{ github.event_name != 'pull_request' }}
     needs:
       - build
+      - diff
     runs-on: ubuntu-latest
     environment: publish
     permissions:
