@@ -3,10 +3,10 @@
     "astral-sh.ty",
     "charliermarsh.ruff",
     "dbaeumer.vscode-eslint",
-    "eamodio.gitlens",
     "esbenp.prettier-vscode",
     "ms-python.python",
     "redhat.vscode-yaml",
+    "SmallMain.vscode-unify-chat-provider",
     "tamasfe.even-better-toml",
     "yzhang.markdown-all-in-one"
   ]

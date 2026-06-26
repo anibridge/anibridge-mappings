@@ -1,9 +1,9 @@
 {
   "name": "anibridge-mappings",
-  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  "image": "mcr.microsoft.com/devcontainers/base:resolute",
   "features": {
     "ghcr.io/devcontainers/features/github-cli:1": {},
-    "ghcr.io/devcontainers/features/node:1": { "version": "25" },
+    "ghcr.io/devcontainers/features/node:2": { "version": "25" },
     "ghcr.io/devcontainers-extra/features/apt-packages:1": {
       "packages": "ripgrep,sqlite3"
     },
@@ -25,6 +25,6 @@
       "settings": { "python-envs.terminal.autoActivationType": "shellStartup" }
     }
   },
-  "postCreateCommand": "uv sync --all-extras --all-groups --all-packages ; (cd app && pnpm i)",
+  "postCreateCommand": "uv sync --all-extras --all-groups --all-packages ; (cd app && CI=1 pnpm i)",
   "containerEnv": { "UV_LINK_MODE": "copy" }
 }
