@@ -102,8 +102,9 @@ class AnimeListsSource(IdMappingSource, EpisodeMappingSource):
             if imdb_ids:  # Anime-Lists only supplies IMDB IDs for movies
                 nodes.extend(("imdb_movie", imdb, None) for imdb in imdb_ids)
 
-            for tmdb_movie in tmdb_movie_ids:
-                nodes.append(("tmdb_movie", tmdb_movie, None))
+            nodes.extend(
+                ("tmdb_movie", tmdb_movie, None) for tmdb_movie in tmdb_movie_ids
+            )
             if tmdb_show:
                 nodes.extend(
                     ("tmdb_show", tmdb_show, scope) for scope in sorted(tmdb_scopes)
@@ -328,8 +329,7 @@ class AnimeListsSource(IdMappingSource, EpisodeMappingSource):
             left_parts = [part.strip() for part in left.split(",") if part.strip()]
             if not left_parts:
                 continue
-            for part in left_parts:
-                pairs.append((part, targets))
+            pairs.extend((part, targets) for part in left_parts)
 
         return pairs
 

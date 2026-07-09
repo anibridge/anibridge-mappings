@@ -3,6 +3,7 @@ import asyncio
 import pytest
 
 from anibridge_mappings.core.graph import IdMappingGraph
+from anibridge_mappings.core.meta import SourceMeta, SourceType
 from anibridge_mappings.sources.qlever import (
     QleverImdbMovieSource,
     QleverImdbShowSource,
@@ -85,8 +86,6 @@ def test_qlever_collect_metadata_requires_prepare_and_uses_fetch(monkeypatch) ->
 
     async def _fake_fetch(entry_ids):
         assert entry_ids == [("tt0000123", None)]
-        from anibridge_mappings.core.meta import SourceMeta, SourceType
-
         return [("tt0000123", {None: SourceMeta(type=SourceType.TV, episodes=7)})]
 
     monkeypatch.setattr(source, "_fetch_entries", _fake_fetch)

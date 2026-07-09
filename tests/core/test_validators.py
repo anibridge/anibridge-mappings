@@ -1,5 +1,6 @@
 from anibridge_mappings.core.graph import EpisodeMappingGraph, IdMappingGraph
 from anibridge_mappings.core.meta import MetaStore, SourceMeta, SourceType
+from anibridge_mappings.core.range_specs import parse_target_spec
 from anibridge_mappings.core.validators import (
     MappingRangeValidator,
     ValidationContext,
@@ -39,8 +40,6 @@ def test_validator_internal_helpers() -> None:
     assert spec1 is not None
 
     # overlap helper via parsed target specs
-    from anibridge_mappings.core.range_specs import parse_target_spec
-
     a = parse_target_spec("1-2")
     b = parse_target_spec("2-3")
     assert a is not None and b is not None

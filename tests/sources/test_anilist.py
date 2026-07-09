@@ -1,6 +1,7 @@
 import asyncio
 
 from anibridge_mappings.core.graph import IdMappingGraph
+from anibridge_mappings.core.meta import SourceMeta, SourceType
 from anibridge_mappings.sources.anilist import AnilistSource
 
 
@@ -138,8 +139,6 @@ def test_anilist_collect_metadata_uses_eligible_ids(monkeypatch) -> None:
 
     async def _fixed_fetch(entry_ids):
         assert entry_ids == [("11", None)]
-        from anibridge_mappings.core.meta import SourceMeta, SourceType
-
         return [("11", {None: SourceMeta(type=SourceType.TV, episodes=13)}, True)]
 
     monkeypatch.setattr(source, "_fetch_missing", _fixed_fetch)

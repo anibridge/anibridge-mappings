@@ -14,6 +14,7 @@ import argparse
 import asyncio
 import logging
 import sys
+from io import StringIO
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -255,14 +256,14 @@ async def main() -> None:
     )
 
     edits_path = Path(args.edits)
-    if not edits_path.exists():
+    if not await asyncio.to_thread(edits_path.exists):
         print(f"error: edits file not found: {edits_path}", file=sys.stderr)
         sys.exit(1)
 
     yaml = YAML(typ="rt")
     yaml.preserve_quotes = True
-    with edits_path.open() as f:
-        edits_data = yaml.load(f) or {}
+    edits_text = await asyncio.to_thread(edits_path.read_text)
+    edits_data = yaml.load(edits_text) or {}
 
     total_pairs = _count_pairs(edits_data)
     if total_pairs == 0:
@@ -284,8 +285,9 @@ async def main() -> None:
     # Remove + write back
     if noops and not args.dry_run:
         removed = remove_noop_edits(edits_data, noops)
-        with edits_path.open("w") as f:
-            yaml.dump(edits_data, f)
+        output = StringIO()
+        yaml.dump(edits_data, output)
+        await asyncio.to_thread(edits_path.write_text, output.getvalue())
         log.info(
             "Removed %d no-op edit(s) and wrote cleaned file to %s",
             removed,

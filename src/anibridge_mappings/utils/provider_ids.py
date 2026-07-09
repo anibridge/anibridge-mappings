@@ -13,7 +13,7 @@ def normalize_imdb_id(raw_value: str | None) -> str | None:
     if not raw_value:
         return None
     lowered = raw_value.strip().lower()
-    suffix = lowered[2:] if lowered.startswith("tt") else lowered
+    suffix = lowered.removeprefix("tt")
 
     if not suffix.isdigit():
         return None

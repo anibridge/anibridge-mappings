@@ -105,17 +105,17 @@ class MappingAggregator:
         """
         await self._prepare_sources()
 
-        log.info(f"Building ID graph from {len(self._id_sources)} sources")
+        log.info("Building ID graph from %d sources", len(self._id_sources))
         id_graph = self._build_id_graph()
-        log.info(f"ID graph contains {id_graph.node_count()} nodes")
+        log.info("ID graph contains %d nodes", id_graph.node_count())
 
-        log.info(f"Collecting metadata from {len(self._metadata_sources)} sources")
+        log.info("Collecting metadata from %d sources", len(self._metadata_sources))
         meta_store = await self._collect_metadata(id_graph)
-        log.info(f"Metadata store contains {len(meta_store.items())} entries")
+        log.info("Metadata store contains %d entries", len(meta_store.items()))
 
-        log.info(f"Building episode graph from {len(self._episode_sources)} sources")
+        log.info("Building episode graph from %d sources", len(self._episode_sources))
         episode_graph = self._build_episode_graph(meta_store, id_graph)
-        log.info(f"Episode graph contains {len(episode_graph.nodes())} nodes")
+        log.info("Episode graph contains %d nodes", len(episode_graph.nodes()))
 
         inferred_graph = infer_episode_mappings(meta_store, id_graph)
         if inferred_graph.node_count():

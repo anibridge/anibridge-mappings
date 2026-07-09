@@ -41,8 +41,6 @@ def test_anime_aggregations_build_id_graph_and_metadata() -> None:
     assert ("imdb_movie", "tt1234567", None) in component
     assert ("tmdb_movie", "10", None) in component
 
-    import asyncio
-
     store = asyncio.run(source.collect_metadata(graph))
     regular = store.peek("anidb", "1", "R")
     specials = store.peek("anidb", "1", "S")

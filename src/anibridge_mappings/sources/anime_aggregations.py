@@ -265,7 +265,7 @@ class AnimeAggregationsSource(IdMappingSource, MetadataSource):
         normalized = raw_type.strip().upper()
         if not normalized:
             return None
-        if normalized in {"MOVIE"}:
+        if normalized == "MOVIE":
             return SourceType.MOVIE
         if normalized in {"SERIES", "OVA", "SPECIAL"}:
             return SourceType.TV

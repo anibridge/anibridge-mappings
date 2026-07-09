@@ -3,6 +3,8 @@ from datetime import UTC
 
 import aiohttp
 import pytest
+from aiohttp import RequestInfo
+from yarl import URL
 
 from anibridge_mappings.core.meta import SourceMeta
 from anibridge_mappings.sources.tvdb import (
@@ -26,9 +28,6 @@ class _FakeResponse:
 
     def raise_for_status(self) -> None:
         if self.status >= 400 and self.status != 429 and self.status != 404:
-            from aiohttp import RequestInfo
-            from yarl import URL
-
             info = RequestInfo(
                 url=URL("http://test"),
                 method="GET",

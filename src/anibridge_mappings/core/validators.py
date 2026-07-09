@@ -205,10 +205,10 @@ class MappingRangeValidator(MappingValidator):
                         episode_limit,
                     )
 
-                    for segment in spec.segments:
-                        target_scope_windows.append(
-                            (segment.start, segment.end, source_range, target_range)
-                        )
+                    target_scope_windows.extend(
+                        (segment.start, segment.end, source_range, target_range)
+                        for segment in spec.segments
+                    )
 
                 self._check_target_scope_overlap(
                     source_descriptor,

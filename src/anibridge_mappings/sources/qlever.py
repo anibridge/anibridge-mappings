@@ -419,7 +419,5 @@ class QleverWikidataSource(IdMappingSource):
             return None
         text = str(raw)
         # Expect something like https://www.wikidata.org/prop/direct/P8729
-        import re
-
         m = re.search(r"P\d+", text)
         return m.group(0) if m else None
