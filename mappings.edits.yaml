@@ -28638,8 +28638,8 @@ anilist:207675:
   tvdb_show:473925:s1:
     "1-": "1-"
 anilist:208044:
-  tmdb_show:314554:s1:
-    "1-": "1-"
+  tmdb_show:314554:s1: #TMDB (and AniDB) shows 12 episodes for this show. Will not sync changes to Anilist without this change
+    "1-12": "1-12"
 anilist:208685:
   tvdb_show:474990:s1:
     "1-": "1-"
