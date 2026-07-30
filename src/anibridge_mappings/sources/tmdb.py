@@ -19,11 +19,6 @@ class BaseTmdbSource(CachedMetadataSource):
 
     API_ROOT = "https://api.themoviedb.org/3"
 
-    async def prepare(self) -> None:
-        """Load cache data and validate TMDB authentication configuration."""
-        await super().prepare()
-        self._require_token()
-
     @staticmethod
     @cache
     def _get_token() -> str | None:

@@ -30,12 +30,12 @@ jobs:
       contents: read
     steps:
       - name: Checkout repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.ref || github.ref }}
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
 
       - name: Install dependencies
         run: uv sync --group dev --locked
@@ -51,10 +51,10 @@ jobs:
       contents: read
     steps:
       - name: Checkout repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
 
       - name: Install dependencies
         run: uv sync --group dev --locked
@@ -62,8 +62,81 @@ jobs:
       - name: Run pytest
         run: uv run pytest
 
+  build-pr:
+    name: Build PR
+    if: ${{ github.event_name == 'pull_request' }}
+    needs:
+      - lint
+      - tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      release_tag: ${{ steps.release-vars.outputs.release_tag }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+
+      - name: Install dependencies
+        run: uv sync --locked
+
+      - name: Compute cache vars
+        id: cache-vars
+        run: |
+          set -euo pipefail
+          uv_version="$(uv version --short)"
+          cache_week="$(date -u +%G-W%V)"
+          cache_prefix="meta-${uv_version}-${cache_week}-"
+
+          echo "cache_prefix=$cache_prefix" >> "$GITHUB_OUTPUT"
+          echo "cache_key=${cache_prefix}pr-${GITHUB_RUN_ID}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore metadata cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: data/meta
+          key: ${{ steps.cache-vars.outputs.cache_key }}
+          restore-keys: |
+            ${{ steps.cache-vars.outputs.cache_prefix }}
+
+      - name: Compute release vars
+        id: release-vars
+        run: |
+          set -euo pipefail
+          uv_version="$(uv version --short)"
+          major="${uv_version%%.*}"
+          echo "release_tag=v$major" >> "$GITHUB_OUTPUT"
+
+      - name: Build mappings from cached metadata
+        run: |
+          set -euo pipefail
+          uv run ./main.py --out "$OUTPUT_DIR" --compress --stats --provenance
+
+      - name: Upload PR artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: data-out
+          path: ${{ env.OUTPUT_DIR }}
+          if-no-files-found: error
+
+      - name: Write workflow summary
+        if: always()
+        run: |
+          set -euo pipefail
+          {
+            if [ -f "$OUTPUT_DIR/stats.md" ]; then
+              cat "$OUTPUT_DIR/stats.md"
+            else
+              echo "stats.md not found."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
   build:
     name: Build Release
+    if: ${{ github.event_name != 'pull_request' }}
     needs:
       - lint
       - tests
@@ -78,10 +151,10 @@ jobs:
       release_date: ${{ steps.release-vars.outputs.release_date }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
 
       - name: Install dependencies
         run: uv sync --locked
@@ -101,7 +174,7 @@ jobs:
           echo "cache_key=$cache_key" >> "$GITHUB_OUTPUT"
 
       - name: Restore metadata cache
-        uses: actions/cache/restore@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6.0.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: data/meta
           key: ${{ steps.cache-vars.outputs.cache_key }}
@@ -128,7 +201,7 @@ jobs:
 
       - name: Save metadata cache
         if: ${{ github.event_name != 'pull_request' }}
-        uses: actions/cache/save@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6.0.0
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: data/meta
           key: ${{ steps.cache-vars.outputs.cache_key }}
@@ -184,8 +257,10 @@ jobs:
 
   diff:
     name: Diff Release
+    if: ${{ always() && (needs.build.result == 'success' || needs.build-pr.result == 'success') }}
     needs:
       - build
+      - build-pr
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -204,7 +279,7 @@ jobs:
 
           old_file="/tmp/prev-release/mappings.json"
           temp_file="${old_file}.tmp"
-          asset_url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${{ needs.build.outputs.release_tag }}/mappings.json"
+          asset_url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${{ needs.build.outputs.release_tag || needs.build-pr.outputs.release_tag }}/mappings.json"
 
           http_code="$(curl \
             --silent \
@@ -243,7 +318,7 @@ jobs:
           fi
 
           if [ ! -f "$old_file" ]; then
-            echo "No previous mappings.json found for ${{ needs.build.outputs.release_tag }}"
+            echo "No previous mappings.json found for ${{ needs.build.outputs.release_tag || needs.build-pr.outputs.release_tag }}"
             : > "$diff_file"
             exit 0
           fi
@@ -319,7 +394,7 @@ jobs:
           } > "$release_notes"
 
       - name: Create or update major release
-        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
         with:
           tag_name: ${{ needs.build.outputs.release_tag }}
           name: Mappings ${{ needs.build.outputs.release_major }} ${{ needs.build.outputs.release_date }}

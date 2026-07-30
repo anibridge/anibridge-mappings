@@ -40,12 +40,6 @@ class BaseTvdbSource(CachedMetadataSource):
         self._token: str | None = None
         self._today = datetime.now(UTC).date()
 
-    async def prepare(self) -> None:
-        """Load cache data and validate TVDB authentication."""
-        await super().prepare()
-        async with aiohttp.ClientSession() as session:
-            await self._get_or_fetch_token(session)
-
     @classmethod
     @cache
     def _get_api_key(cls) -> str | None:
