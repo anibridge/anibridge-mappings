@@ -15910,6 +15910,8 @@ anilist:103303:
     "1-13": "1-13"
   tmdb_show:153217:s1:
     "1-13": "1-13"
+  anidb:14236:R:
+    "1-13": "1-13"
   tvdb_show:407704:s1:
     "1-13": "1-13"
 anilist:103314:
@@ -25363,6 +25365,8 @@ anilist:169523:
 anilist:169582:
   tmdb_show:284581:s1:
     "1-12": "1-12"
+  anidb:18210:R:
+    "1-12": "1-12"
 anilist:169584:
   tmdb_show:117992:s1:
     "1-12": "25-36"
@@ -27902,6 +27906,8 @@ anilist:186859:
 anilist:186863:
   tmdb_show:284029:s1:
     "1-": "1-"
+  anidb:19172:R:
+    "1-": "1-"
 anilist:187084:
   mal:61087:
     "1": "1"
@@ -28317,6 +28323,8 @@ anilist:198369:
 anilist:198376:
   tmdb_show:300112:s1:
     "1-12": "1-12"
+  anidb:19566:R:
+    "1-": "1-"
 anilist:198379:
   mal:62417:
     "1": "1"
@@ -28402,6 +28410,8 @@ anilist:199636:
 anilist:199748:
   tmdb_show:302051:s1:
     "1-": "1-"
+  anidb:19635:R:
+    "1-12": "1-12"
 anilist:199798:
   mal:62647:
     "1": "1"
@@ -28417,11 +28427,15 @@ anilist:200046:
 anilist:200230:
   tmdb_show:302824:s1:
     "1-12": "1-12"
+  anidb:19646:R:
+    "1-12": "1-12"
 anilist:200560:
   mal:62810:
     "1": "1"
 anilist:200637:
   tvdb_show:432050:s3:
+    "1-": "1-"
+  anidb:19663:R:
     "1-": "1-"
 anilist:200769:
   anidb:19667:R:
@@ -28435,9 +28449,13 @@ anilist:200769:
 anilist:201514:
   tmdb_show:312849:s1:
     "1-12": "1-12"
+  anidb:19690:R:
+    "1-12": "1-12"
 anilist:201667:
   tmdb_show:110837:s2:
     "1-": "1-"
+  anidb:19698:R:
+    "1-12": "1-12"
 anilist:201808:
   mal:62892:
     "1": "1"
@@ -28468,11 +28486,15 @@ anilist:202985:
 anilist:203490:
   tmdb_show:307585:s1:
     "1-24": "1-24"
+  anidb:19755:R:
+    "1-24": "1-24"
 anilist:203710:
   tmdb_show:305386:s1:
     "1-36": "1-36"
 anilist:203880:
   tmdb_show:312507:s1:
+    "1-13": "1-13"
+  anidb:19764:R:
     "1-13": "1-13"
 anilist:203939:
   anidb:19825:R:
@@ -28597,6 +28619,8 @@ anilist:206353:
 anilist:206521:
   tmdb_show:312020:s1:
     "1-12": "1-12"
+  anidb:19849:R:
+    "1-": "1-"
 anilist:206523:
   tmdb_show:312123:s1:
     "1-": "1-"
@@ -28629,9 +28653,13 @@ anilist:207084:
 anilist:207141:
   tmdb_show:312949:s1:
     "1-": "1-"
+  anidb:19873:R:
+    "1-": "1-"
 anilist:207674:
   tmdb_show:325052:s1:
     "1-": "1-"
+  anidb:19889:R:
+    "1-12": "1-12"
 anilist:207675:
   anidb:20000:R:
     "1-": "1-"
@@ -28644,17 +28672,23 @@ anilist:207675:
 anilist:208044:
   tmdb_show:314554:s1: #TMDB (and AniDB) shows 12 episodes for this show. Will not sync changes to Anilist without this change
     "1-12": "1-12"
+  anidb:19896:R:
+    "1-": "1-"
 anilist:208685:
   tvdb_show:474990:s1:
     "1-": "1-"
 anilist:209669:
   tmdb_show:254492:s2:
     "1-13": "1-13"
+  anidb:19961:R:
+    "1-13": "1-13"
 anilist:209940:
   tmdb_show:317727:s1:
     "1-": "1-"
 anilist:209983:
   tmdb_show:280049:s2:
+    "1-": "1-"
+  anidb:19978:R:
     "1-": "1-"
 anilist:210234:
   anidb:19831:R:
@@ -29479,3 +29513,69 @@ tvdb_show:370761:s0:
 tvdb_show:473516:s1:
   mal:63396:
     "1-3": "1-3"
+anilist:196187:
+  anidb:19479:R:
+    "1-12": "1-12"
+anilist:210031:
+  anidb:19983:R:
+    "1-13": "1-13"
+anilist:180136:
+  anidb:18854:R:
+    "1-26": "1-26"
+anilist:187260:
+  anidb:19189:R:
+    "1-13": "1-13"
+anilist:159309:
+  anidb:17796:R:
+    "1-12": "1-12"
+anilist:198946:
+  anidb:19581:R:
+    "1-13": "1-13"
+anilist:190569:
+  anidb:19290:R:
+    "1-": "1-"
+anilist:197715:
+  anidb:19534:R:
+    "1-12": "1-12"
+anilist:202269:
+  anidb:19720:R:
+    "1-": "1-"
+anilist:188139:
+  anidb:19226:R:
+    "1-11": "1-11"
+anilist:196218:
+  anidb:19484:R:
+    "1-": "1-"
+anilist:177637:
+  anidb:18643:R:
+    "1-12": "1-12"
+anilist:192800:
+  anidb:19327:R:
+    "1-12": "1-12"
+anilist:199066:
+  anidb:19594:R:
+    "1-": "1-"
+anilist:198709:
+  anidb:19573:R:
+    "1-": "1-"
+anilist:208225:
+  anidb:19909:R:
+    "1-12": "1-12"
+anilist:185875:
+  anidb:19080:R:
+    "1-12": "1-12"
+anilist:185692:
+  anidb:19063:R:
+    "1-": "1-"
+anilist:213665:
+  anidb:20180:R:
+    "1-": "1-"
+anilist:213666:
+  anidb:20187:R:
+    "1-": "1-"
+anilist:209800:
+  anidb:19816:R:
+    "1-": "1-"
+anilist:213750:
+  anidb:20189:R:
+    "1": "1"
