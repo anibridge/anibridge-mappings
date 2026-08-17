@@ -334,7 +334,7 @@ jobs:
 
   publish:
     name: Publish Release
-    if: ${{ github.event_name != 'pull_request' }}
+    if: ${{ github.event_name != 'pull_request' && always() && needs.build.result == 'success' && needs.diff.result == 'success' }}
     needs:
       - build
       - diff
