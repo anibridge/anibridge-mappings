@@ -785,9 +785,6 @@ anilist:562:
     "1-3": "1-3"
   tvdb_show:84527:s4:
     "1-3": "1-3"
-anilist:567:
-  tmdb_show:18241:s0:
-    "1-3": "1-3"
 anilist:571:
   tmdb_movie:301470:
     "1-6": "1|6"
@@ -10052,8 +10049,6 @@ anilist:21697:
   tvdb_show:309143:s0:
     "1": "1"
 anilist:21717:
-  tmdb_show:76123:s0:
-    "1-3": "1-3"
   tmdb_show:76123:s1:
     "4-13": "1-10"
   tvdb_show:337018:s1:
@@ -16266,9 +16261,6 @@ anilist:196218:
 anilist:196613:
   tvdb_show:337284:s5:
     "1-52": "158-209"
-anilist:196935:
-  tmdb_show:297438:s0:
-    "1-12": "1-12"
 anilist:196974:
   tmdb_show:297557:s1:
     "1-": "1-"
