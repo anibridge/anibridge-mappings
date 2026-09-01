@@ -15399,6 +15399,8 @@ anilist:170068:
   tvdb_show:424536:s0:
     "1-12": "1-12"
 anilist:170221:
+  anidb:18066:S:
+    "1": "1"
   tmdb_show:207250:s0:
     "1": "1"
   tvdb_show:422981:s0:
@@ -15852,6 +15854,8 @@ anilist:182300:
   tmdb_show:245842:s2:
     "1-": "1-"
 anilist:182317:
+  anidb:18890:R:
+    "1": "1"
   imdb_movie:tt21423786:
     "1": "1"
   tvdb_show:422981:s0:
