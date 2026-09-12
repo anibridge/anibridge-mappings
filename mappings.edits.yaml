@@ -1,5 +1,8 @@
 $meta:
   version: 3.0.3
+anidb:17287:R: # Sasaki and Miyano: Graduation is TVDB S00E02; the anilist, mal, tmdb_movie and imdb_movie keys already carry that target, only the anidb key was missing it
+  tvdb_show:404886:s0:
+    "1": "2"
 anilist:5:
   tvdb_show:76885:s0:
     "1": "3"
