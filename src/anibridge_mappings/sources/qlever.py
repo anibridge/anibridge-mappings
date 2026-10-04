@@ -271,7 +271,7 @@ class QleverWikidataSource(IdMappingSource):
     """Emit AniList-centered ID links derived from Wikidata."""
 
     # https://query.wikidata.org/sparql (robots policy blocking usage)
-    ENDPOINT_URL = "https://qlever-backend.wmcloud.org"
+    ENDPOINT_URL = "https://qlever.dev/api/wikidata"
     QUERY = """
     # PREFIX statements are only required for qlever.dev
     PREFIX wd: <http://www.wikidata.org/entity/>
