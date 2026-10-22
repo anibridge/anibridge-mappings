@@ -2,7 +2,7 @@
 
 ## Data Source
 
-**URL**: `https://github.com/manami-project/anime-offline-database/releases/latest/download/anime-offline-database-minified.json.zst`
+**URL**: `https://github.com/cedya77/anime-offline-database/releases/latest/download/anime-offline-database-minified.json.zst`
 **Format**: Zstandard-compressed JSON
 
 ## Schema

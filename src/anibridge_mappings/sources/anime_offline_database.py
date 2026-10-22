@@ -1,4 +1,4 @@
-"""Module for the manami-project/anime-offline-database source."""
+"""Module for the cedya77/anime-offline-database source."""
 
 import io
 import re
@@ -38,7 +38,7 @@ class AnimeOfflineDatabaseEntry(BaseModel):
 class AnimeOfflineDatabaseSource(MetadataSource, IdMappingSource):
     """Source handler for the Anime Offline Database."""
 
-    SOURCE_URL = "https://github.com/manami-project/anime-offline-database/releases/download/latest/anime-offline-database-minified.json.zst"
+    SOURCE_URL = "https://github.com/cedya77/anime-offline-database/releases/download/latest/anime-offline-database-minified.json.zst"
 
     _SOURCE_PATTERNS: ClassVar[list[tuple[str, re.Pattern[str]]]] = [
         ("anidb", re.compile(r"^https?://anidb\.net/anime/(\d+)$", re.IGNORECASE)),
