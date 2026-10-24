@@ -30,7 +30,7 @@ class BaseShinkroMappingSource(BaseSource):
     async def prepare(self) -> None:
         """Fetch and parse the upstream mapping payload."""
         async with (
-            aiohttp.ClientSession() as session,
+            aiohttp.ClientSession(max_field_size=64 * 1024) as session,
             session.get(self.SOURCE_URL) as response,
         ):
             response.raise_for_status()

@@ -54,7 +54,7 @@ class AnimeOfflineDatabaseSource(MetadataSource, IdMappingSource):
     async def prepare(self) -> None:
         """Download and decompress the upstream dataset."""
         async with (
-            aiohttp.ClientSession() as session,
+            aiohttp.ClientSession(max_field_size=64 * 1024) as session,
             session.get(self.SOURCE_URL) as response,
         ):
             response.raise_for_status()

@@ -29,7 +29,7 @@ class AnimeListsSource(IdMappingSource, EpisodeMappingSource):
     async def prepare(self) -> None:
         """Fetch and cache the upstream XML payload."""
         async with (
-            aiohttp.ClientSession() as session,
+            aiohttp.ClientSession(max_field_size=64 * 1024) as session,
             session.get(self.SOURCE_URL) as response,
         ):
             if response.status != 200:
