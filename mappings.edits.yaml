@@ -17113,6 +17113,13 @@ tmdb_show:42511:s1: # do not change, no warning shots
     "1-14": "1-14|0"
   anilist:4382:
     "1-28": "1-28|0"
+tmdb_show:45790:s6:
+  anilist:190327:
+    "1": "1"
+  anilist:210482:
+    "2-12": "1-11"
+  mal:61469:
+    "1-": "1-"
 tvdb_movie:2036:
   anilist:31:
     "1": "1|0"
@@ -17150,7 +17157,9 @@ tvdb_show:262856:s0:
     "5-6": "1-2"
 tvdb_show:262954:s6:
   anilist:190327:
-    "1-": "1-"
+    "1": "1"
+  anilist:210482:
+    "2-12": "1-11"
   mal:61469:
     "1-": "1-"
 tvdb_show:293119:s0:
